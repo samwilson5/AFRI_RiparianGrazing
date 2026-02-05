@@ -241,6 +241,27 @@ write.csv(all.pheno,"C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTe
 library(sf)
 library(dplyr)
 library(stringr)
+pastsSF = st_read("C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/BLM_GISdata/Field_Office_Extents/Salmon_Pastures.shp")
+
+pastsDF = as.data.frame(pastsSF[,c('ALLOT_NO','ALLOT_NAME','PAST_NO','PAST_NAME')])
+pastsDF$area = drop_units(st_area(pastsSF))
+
+pastsDF$combo_NO = paste0(pastsDF$ALLOT_NO,'_',pastsDF$PAST_NO)
+
+
+combo_List = pastsDF$combo_NO
+
+ls_sampleSize = data.frame(combo_NO = as.character(), size_pixels = as.numeric())
+for(i in combo_List){
+  temp = read.csv(paste0("Data/SFO_Riparian_SampleSize/",i,'.csv'))
+  temp$combo_NO = i
+  temp = temp %>% rename(size_pixels = SR_B1)
+  ls_sampleSize = rbind(ls_sampleSize,temp)
+}
+
+ls_sampleSize = ls_sampleSize %>% filter(size_pixels >= 10)
+sites_to_keep = c(ls_sampleSize$combo_NO)
+
 fitted.curve.all = read.csv("C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Remote_sensing_READYFORANALYSIS/all_fits.csv")
 pheno.all = read.csv("C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Remote_sensing_READYFORANALYSIS/all_pheno.csv")
 treatments = read.csv('C:/Users/samwi/OneDrive - University of Idaho/SFO_allTreatments.csv')
@@ -289,7 +310,7 @@ for(i in pheno.sites){
   onlyone = summarized.pheno.all %>% filter(combo_NO == i)
   if(nrow(onlyone) != 21){print(i)}
 }
-# this site has bad phenofit and needed to be dropped
+# this site has bad phenofit and needed to be dropped, we need to mention this somewhere and why we think that the phenofit was unreliable......
 summarized.pheno.all = summarized.pheno.all %>% filter(combo_NO != '06310_02') %>%
   filter(combo_NO != '06301_03') %>%
   filter(combo_NO != '06307_05') %>%
@@ -384,6 +405,15 @@ fitted.response.climate = fitted.response.variables %>%
   left_join(all.climate,join_by(combo_NO==combo_NO,year==year))
 
 ### first variable for mixed effects -> growing season integral (gs_integral)
+fitted.response.climate = fitted.response.climate[fitted.response.climate$combo_NO %in% sites_to_keep,]
+
+################# see what happens if we remove treatments with very few samples
+fitted.response.climate = fitted.response.climate %>%
+  filter(Treatment != 'Early.Late.Rotation',
+         Treatment != 'Exclosure',
+         Treatment != 'Rest.Rotation',
+         Treatment != 'Summer.Late.Rotation',
+         Treatment != 'Early.Late.Roatation')
 
 p1 <- ggplot(fitted.response.climate, aes(x = year, y = gs_integral)) +
   geom_point() +
@@ -423,9 +453,12 @@ m1.lmer = lmer(gs_integral ~ 1 + (1|year), REML = T,data = fitted.response.clima
 AIC(logLik(m1.lmer)) # 12020
 
 # model with site and and year as random effect and no fixed effects
-m2.lmer = lmer(gs_integral ~ 1 + (1|year) + (1|combo_NO), REML = T, data = fitted.response.climate)
+m1.lmer = lmer(gs_integral ~ 1 + (1|year) + (1|combo_NO), REML = F, data = fitted.response.climate)
 AIC(logLik(m2.lmer)) #10323
 anova(m0.lmer,m2.lmer,test='Chi') # so including year and site results in lower AIC and p = <0.0001 so this model choice is definitely the move
+
+m2.lmer = lmer(gs_integral ~ year + (1|combo_NO),REML=F,data=fitted.response.climate)
+anova(m1.lmer,m2.lmer,test='Chi') # so including year and site results in lower AIC and p = <0.0001 so this model choice is definitely the move
 
 # now we need to figure out our fixed effects! Treatment is of the most interest but lets see if there are any correlation issues first
 # we should also be looking at PPT_mm, Tmax_C, Tmin_C, elevation_m
@@ -444,30 +477,35 @@ anova(m2.lmer,m3.lmer,test='Chi') ## ppt certainly stays
 ## no elevation
 
 m3.lmer = update(m2.lmer, .~.+ Treatment)
-anova(m2.lmer,m3.lmer,test='Chi') ## p = 0.57
+anova(m2.lmer,m3.lmer,test='Chi') ## p = 0.34
 
-m1.lmer = lmer(gs_integral ~ Tavg_C + PPT_mm + (1|year) + (1|combo_NO),data=fitted.response.climate)
+m1.lmer = lmer(gs_integral ~ Tavg_C + PPT_mm + year + (1|combo_NO),data=fitted.response.climate)
 car::Anova(m1.lmer,type='II')
-confint(m1.lmer) # this shows Tavg including zero so lets look at treatment without zero
+confint(m1.lmer) # this shows that temp and precip are both important and increase the gs_integral
 #m1.lmer = lmer(gs_integral ~ PPT_mm + (1|year) + (1|combo_NO),data=fitted.response.climate)
 
 m2.lmer = update(m1.lmer, .~.+ Treatment)
-anova(m1.lmer,m2.lmer,test='Chi') #0.77
+anova(m1.lmer,m2.lmer,test='Chi') #0.20
 
 m2.lmer = update(m1.lmer, .~.+Treatment*Tavg_C)
-anova(m1.lmer,m2.lmer,test='Chi') #0.005
+anova(m1.lmer,m2.lmer,test='Chi') #0.01
 
 
 m2.lmer = update(m1.lmer, .~.+Treatment*PPT_mm)
-anova(m1.lmer,m2.lmer,test='Chi') #0.77
+anova(m1.lmer,m2.lmer,test='Chi') #0.27
 
 # so lets look at the interaction
-m1.lmer = lmer(gs_integral ~ Tavg_C + PPT_mm + Treatment*Tavg_C + (1|year) + (1|combo_NO),data=fitted.response.climate)
-confint(m1.lmer) # only the interaction term for rest.rotation does not contain 0
-car::Anova(m1.lmer,type='II') #PPT and the interaction are significant
+m1.lmer = lmer(gs_integral ~ Tavg_C + PPT_mm + Treatment*Tavg_C + year + (1|combo_NO),data=fitted.response.climate)
+confint(m1.lmer) # all interaction terms cross 0
+car::Anova(m1.lmer,type='II') # everything except just treatment is significant
 emmeans(m1.lmer, ~ Treatment*Tavg_C) # they all overlap
 pairs(emmeans(m1.lmer, ~ Treatment*Tavg_C)) # no significant differences
+plot(emmeans(m1.lmer, ~ Treatment*Tavg_C))
 ### overall, theres not a lot that can be said about only a significant result from the interaction....
+(RG4 <- ref_grid(m1.lmer))
+emmip(m1.lmer, Treatment~Tavg_C,style='factor',at = list(Tavg_C = 2:9))
+
+
 
 plot(m1.lmer, Treatment ~ resid(.), abline = 0 ) # generate diagnostic plots
 
@@ -478,35 +516,36 @@ plot(m1.lmer, resid(., type = "pearson") ~ fitted(.) | Treatment, id = 0.05,
 
 # looks pretty random
 summary(m1.lmer)
-# random effects:
-  ## combo_NO (Intercept) -> 34.02
-  ## year (Intercept) -> 18.65
-  ## residual -> 14.54 SD 3.813
-## Tavg_C => -2.6 so higher average temperature leads to a smaller gs_integral
-## PPT_mm => 0.02 => higher precip higher gs_integral
-## elevation is confusting -> -0.01 higher elevation lower gs_integral
-## treatments is a little strange -> negative slopes are Early.Late.Rotation, Exclosure, SUmmer, Summer.Late.Roation
-## -> positive slopes are Early, Late, Rest Rotation
 
-## interaction term is even more difficult to understand
-## increase temp = lower gs_integral -> Early, Late, Rest Rotation
-## increase temp = higher gs_integral -> Early.Late.Rotation, Exclosure, Summer, Summer.Late.Rotation
-#TreatmentEarly                         3.518627   3.385153   1.039
-#TreatmentEarly.Late.Roatation        -19.112488   9.955145  -1.920
-#TreatmentExclosure                    -5.403678   6.553999  -0.824
-#TreatmentLate                          6.188497   4.395195   1.408
-#TreatmentRest.Rotation                32.787247  15.016575   2.183
-#TreatmentSummer                       -0.632679   3.498196  -0.181
-#TreatmentSummer.Late.Rotation        -10.814235   8.931838  -1.211
-#Tavg_C:TreatmentEarly                 -0.524656   0.510008  -1.029
-#Tavg_C:TreatmentEarly.Late.Roatation   2.004394   1.312442   1.527
-#Tavg_C:TreatmentExclosure              2.170968   1.012148   2.145
-#Tavg_C:TreatmentLate                  -0.990430   0.686284  -1.443
-#Tavg_C:TreatmentRest.Rotation         -4.203059   1.856811  -2.264
-#Tavg_C:TreatmentSummer                 0.318717   0.530420   0.601
-#Tavg_C:TreatmentSummer.Late.Rotation   2.613834   1.489547   1.755
+# Random effects:
+#   Groups   Name        Variance Std.Dev.
+# combo_NO (Intercept) 29.76    5.455   
+# Residual             20.26    4.502   
+# Number of obs: 1636, groups:  combo_NO, 106
+# 
+# Fixed effects:
+#   Estimate Std. Error t value
+# (Intercept)                          -987.84853   49.86488 -19.811
+# Tavg_C                                  1.32155    0.54419   2.428
+# PPT_mm                                  4.09666    0.69321   5.910
+# TreatmentEarly                          3.76709    3.91785   0.962
+# TreatmentEarly.Late.Roatation         -20.26697   11.25603  -1.801
+# TreatmentExclosure                     -4.76161    7.16866  -0.664
+# TreatmentLate                           6.15531    4.99790   1.232
+# TreatmentRest.Rotation                 28.11224   17.11558   1.642
+# TreatmentSummer                        -1.74785    3.93751  -0.444
+# TreatmentSummer.Late.Rotation         -14.86540   10.04481  -1.480
+# year                                    0.50085    0.02489  20.121
+# Tavg_C:TreatmentEarly                  -0.40581    0.61520  -0.660
+# Tavg_C:TreatmentEarly.Late.Roatation    1.94047    1.54975   1.252
+# Tavg_C:TreatmentExclosure               2.11055    1.17089   1.803
+# Tavg_C:TreatmentLate                   -0.53274    0.84010  -0.634
+# Tavg_C:TreatmentRest.Rotation          -4.06219    2.19142  -1.854
+# Tavg_C:TreatmentSummer                  0.60031    0.63101   0.951
+# Tavg_C:TreatmentSummer.Late.Rotation    3.16896    1.75511   1.806
 
 ###### second variable -> annual integral (annual_integral) ########################
+fitted.response.climate = fitted.response.climate[fitted.response.climate$combo_NO %in% sites_to_keep,]
 
 p1 <- ggplot(fitted.response.climate, aes(x = year, y = annual_integral)) +
   geom_point() +
@@ -539,15 +578,16 @@ ggplot(fitted.response.climate, aes(year, annual_integral)) +
 
 
 # model with site and and year as random effect and no fixed effects
-m2.lmer = lmer(annual_integral ~ 1 + (1|year) + (1|combo_NO), REML = T, data = fitted.response.climate)
+m1.lmer = lmer(annual_integral ~ 1 + (1|year) + (1|combo_NO), REML = F, data = fitted.response.climate)
 AIC(logLik(m2.lmer)) #11344
 
+m2.lmer = lmer(annual_integral ~ year + (1|combo_NO), REML = F, data = fitted.response.climate)
 # now we need to figure out our fixed effects! Treatment is of the most interest but lets see if there are any correlation issues first
 # we should also be looking at PPT_mm, Tmax_C, Tmin_C, elevation_m
 
 # first tmax
 m3.lmer = update(m2.lmer, .~.+ Tavg_C)
-anova(m2.lmer,m3.lmer,test='Chi') ## 0.09 -> marginally better
+anova(m2.lmer,m3.lmer,test='Chi') ## 0.0001 
 
 
 # next ppt_mm
@@ -556,27 +596,26 @@ anova(m2.lmer,m3.lmer,test='Chi') ## 0.00000 -> way better
 
 ## next treatment
 m3.lmer = update(m2.lmer, .~.+ Treatment)
-anova(m2.lmer,m3.lmer,test='Chi') ## 0.75
+anova(m2.lmer,m3.lmer,test='Chi') ## 0.63
 
 
-m1.lmer = lmer(annual_integral ~ Tavg_C + PPT_mm + (1|year) + (1|combo_NO),REML = F,data = fitted.response.climate)
-confint(m1.lmer) # tavg includes 0
+m1.lmer = lmer(annual_integral ~ Tavg_C + PPT_mm + year + (1|combo_NO),REML = F,data = fitted.response.climate)
+confint(m1.lmer) # 
 car::Anova(m1.lmer,type='II')
-m1.lmer = lmer(annual_integral ~ PPT_mm + (1|year) + (1|combo_NO),REML = F,data = fitted.response.climate)
 
 m2.lmer = update(m1.lmer, .~.+ Treatment)
-anova(m1.lmer,m2.lmer,test='Chi') ## 0.85
+anova(m1.lmer,m2.lmer,test='Chi') ## 0.25
 
 m2.lmer = update(m1.lmer, .~.+ Treatment*Tavg_C)
 anova(m1.lmer,m2.lmer,test='Chi') ## 0.05
-car::Anova(m2.lmer,type='II') #PPT and interaction are significant
+car::Anova(m2.lmer,type='II') # all except just treatment are significant
 
 m2.lmer = update(m1.lmer, .~.+ Treatment*PPT_mm)
-anova(m1.lmer,m2.lmer,test='Chi') ## 0.67
+anova(m1.lmer,m2.lmer,test='Chi') ## 0.45
 
-m1.lmer = lmer(annual_integral ~ Tavg_C + PPT_mm + Treatment*Tavg_C + (1|year) + (1|combo_NO),REML = F,data = fitted.response.climate) 
+m1.lmer = lmer(annual_integral ~ Tavg_C + PPT_mm + Treatment*Tavg_C + year + (1|combo_NO),REML = F,data = fitted.response.climate) 
 confint(m1.lmer) #only summer.late.rotation doesn't include 0
-car::Anova(m1.lmer,type='II') #PPT and the interaction are significant
+car::Anova(m1.lmer,type='II') 
 emmeans(m1.lmer, ~ Treatment*Tavg_C) # they all overlap
 pairs(emmeans(m1.lmer, ~ Treatment*Tavg_C)) # no significant differences
 
@@ -590,32 +629,32 @@ plot(m1.lmer, resid(., type = "pearson") ~ fitted(.) | Treatment, id = 0.05,
 # looks pretty random
 summary(m1.lmer)
 
-#Random effects:
-#  Groups   Name        Variance Std.Dev.
-#combo_NO (Intercept) 52.88    7.272   
-#year     (Intercept) 26.06    5.105   
-#Residual             26.26    5.125   
-#Number of obs: 1771, groups:  combo_NO, 116; year, 17
-
-#Fixed effects:
-#  Estimate Std. Error t value
-#(Intercept)                           27.3475     6.1941   4.415
-#Tavg_C                                 0.3414     0.8893   0.384
-#PPT_mm                                 7.8308     1.5558   5.033
-#TreatmentEarly                         5.2033     4.4344   1.173
-#TreatmentEarly.Late.Roatation        -21.5840    13.1300  -1.644
-#TreatmentExclosure                    -5.4653     8.5552  -0.639
-#TreatmentLate                          5.5447     5.7457   0.965
-#TreatmentRest.Rotation                29.7632    19.9406   1.493
-#TreatmentSummer                       -0.2806     4.5386  -0.062
-#TreatmentSummer.Late.Rotation        -16.7119    11.7563  -1.422
-#Tavg_C:TreatmentEarly                 -0.7330     0.6818  -1.075
-#Tavg_C:TreatmentEarly.Late.Roatation   2.5333     1.7613   1.438
-#Tavg_C:TreatmentExclosure              2.3524     1.3497   1.743
-#Tavg_C:TreatmentLate                  -0.8901     0.9168  -0.971
-#Tavg_C:TreatmentRest.Rotation         -4.0354     2.4944  -1.618
-#Tavg_C:TreatmentSummer                 0.2354     0.7088   0.332
-#Tavg_C:TreatmentSummer.Late.Rotation   4.1585     2.0001   2.079
+# Random effects:
+#   Groups   Name        Variance Std.Dev.
+# combo_NO (Intercept) 51.98    7.210   
+# Residual             37.10    6.091   
+# Number of obs: 1636, groups:  combo_NO, 106
+# 
+# Fixed effects:
+#   Estimate Std. Error t value
+# (Intercept)                          -1.573e+03  6.746e+01 -23.322
+# Tavg_C                                2.784e+00  7.346e-01   3.790
+# PPT_mm                                4.994e+00  9.374e-01   5.327
+# TreatmentEarly                        6.247e+00  5.266e+00   1.186
+# TreatmentEarly.Late.Roatation        -2.620e+01  1.518e+01  -1.726
+# TreatmentExclosure                   -3.474e+00  9.622e+00  -0.361
+# TreatmentLate                         6.455e+00  6.716e+00   0.961
+# TreatmentRest.Rotation                2.258e+01  2.310e+01   0.978
+# TreatmentSummer                       3.539e-01  5.292e+00   0.067
+# TreatmentSummer.Late.Rotation        -2.074e+01  1.353e+01  -1.533
+# year                                  7.908e-01  3.368e-02  23.483
+# Tavg_C:TreatmentEarly                -6.259e-01  8.305e-01  -0.754
+# Tavg_C:TreatmentEarly.Late.Roatation  2.604e+00  2.096e+00   1.242
+# Tavg_C:TreatmentExclosure             2.131e+00  1.579e+00   1.349
+# Tavg_C:TreatmentLate                 -4.047e-01  1.134e+00  -0.357
+# Tavg_C:TreatmentRest.Rotation        -3.933e+00  2.965e+00  -1.326
+# Tavg_C:TreatmentSummer                5.068e-01  8.519e-01   0.595
+# Tavg_C:TreatmentSummer.Late.Rotation  4.943e+00  2.374e+00   2.082
 
 ###### third variable -> peak NDVI (peak_NDVI) ########################
 
@@ -650,15 +689,16 @@ ggplot(fitted.response.climate, aes(year, peak_NDVI)) +
 
 
 # model with site and and year as random effect and no fixed effects
-m2.lmer = lmer(peak_NDVI ~ 1 + (1|year) + (1|combo_NO), REML = T, data = fitted.response.climate)
+m1.lmer = lmer(peak_NDVI ~ 1 + (1|year) + (1|combo_NO), REML = T, data = fitted.response.climate)
 AIC(logLik(m2.lmer)) #11344
 
+m2.lmer = lmer(peak_NDVI ~ year + (1|combo_NO), REML = F, data = fitted.response.climate)
 # now we need to figure out our fixed effects! Treatment is of the most interest but lets see if there are any correlation issues first
 # we should also be looking at PPT_mm, Tmax_C, Tmin_C, elevation_m
 
 # first tmax
 m3.lmer = update(m2.lmer, .~.+ Tavg_C)
-anova(m2.lmer,m3.lmer,test='Chi') ## 0.03 -> better
+anova(m2.lmer,m3.lmer,test='Chi') ## 0.07 -> nah
 
 
 # next ppt_mm
@@ -667,65 +707,22 @@ anova(m2.lmer,m3.lmer,test='Chi') ## 0.00000 -> way better
 
 ## next treatment
 m3.lmer = update(m2.lmer, .~.+ Treatment)
-anova(m2.lmer,m3.lmer,test='Chi') ## 0.35
+anova(m2.lmer,m3.lmer,test='Chi') ## 0.14
 
 
-m1.lmer = lmer(peak_NDVI ~ Tavg_C + PPT_mm + (1|year) + (1|combo_NO),REML = F,data = fitted.response.climate)
+m1.lmer = lmer(peak_NDVI ~ PPT_mm + year + (1|combo_NO),REML = F,data = fitted.response.climate)
 confint(m1.lmer) #tavg contains 0
 car::Anova(m1.lmer,type='II')
-m1.lmer = lmer(peak_NDVI ~ PPT_mm + (1|year) + (1|combo_NO),REML = F,data = fitted.response.climate)
 
 m2.lmer = update(m1.lmer, .~.+ Treatment)
-anova(m1.lmer,m2.lmer,test='Chi') ## 0.6
-
-m2.lmer = update(m1.lmer, .~.+ Treatment*Tavg_C)
-anova(m1.lmer,m2.lmer,test='Chi') ## 0.005
-car::Anova(m2.lmer,type='II') #interaction and ppt are significant
+anova(m1.lmer,m2.lmer,test='Chi') ## 0.17
 
 m2.lmer = update(m1.lmer, .~.+ Treatment*PPT_mm)
-anova(m1.lmer,m2.lmer,test='Chi') ## 0.12
+anova(m1.lmer,m2.lmer,test='Chi') ## 0.08
 
-m1.lmer = lmer(peak_NDVI ~ Tavg_C + PPT_mm + Treatment*Tavg_C + (1|year) + (1|combo_NO),REML = F,data = fitted.response.climate) 
-confint(m1.lmer) #only Late doesn't include 0
-car::Anova(m1.lmer,type='II') #PPT and the interaction are significant
-emmeans(m1.lmer, ~ Treatment*Tavg_C) # they all overlap
-pairs(emmeans(m1.lmer, ~ Treatment*Tavg_C)) # no significant differences
-
-plot(m1.lmer, Treatment ~ resid(.), abline = 0 ) # generate diagnostic plots
-
-# seeing a lot of outliers in early and summer
-
-plot(m1.lmer, resid(., type = "pearson") ~ fitted(.) | Treatment, id = 0.05, 
-     adj = -0.3, pch = 20, col = "gray40")
-
-# looks pretty random
-summary(m1.lmer)
-#Random effects:
-#  Groups   Name        Variance  Std.Dev.
-#combo_NO (Intercept) 0.0017223 0.04150 
-#year     (Intercept) 0.0002294 0.01515 
-#Residual             0.0004626 0.02151 
-#Number of obs: 1771, groups:  combo_NO, 116; year, 17
-
-#Fixed effects:
-#  Estimate Std. Error t value
-#(Intercept)                           0.1249041  0.0287805   4.340
-#Tavg_C                                0.0019759  0.0041314   0.478
-#PPT_mm                                0.0586185  0.0065216   8.988
-#TreatmentEarly                        0.0120071  0.0208186   0.577
-#TreatmentEarly.Late.Roatation        -0.0749830  0.0591663  -1.267
-#TreatmentExclosure                   -0.0009324  0.0407285  -0.023
-#TreatmentLate                         0.0593740  0.0270519   2.195
-#TreatmentRest.Rotation                0.1577114  0.0887239   1.778
-#TreatmentSummer                      -0.0181171  0.0213718  -0.848
-#TreatmentSummer.Late.Rotation         0.0178641  0.0538324   0.332
-#Tavg_C:TreatmentEarly                -0.0018865  0.0029134  -0.648
-#Tavg_C:TreatmentEarly.Late.Roatation  0.0036950  0.0074077   0.499
-#Tavg_C:TreatmentExclosure             0.0078460  0.0058091   1.351
-#Tavg_C:TreatmentLate                 -0.0098676  0.0039233  -2.515
-#Tavg_C:TreatmentRest.Rotation        -0.0202717  0.0104787  -1.935
-#Tavg_C:TreatmentSummer                0.0039777  0.0030269   1.314
-#Tavg_C:TreatmentSummer.Late.Rotation -0.0027592  0.0084060  -0.328
+m1.lmer = lmer(peak_NDVI ~ PPT_mm + Treatment*PPT_mm + year + (1|combo_NO),REML = F,data = fitted.response.climate) 
+confint(m1.lmer) #only summer doesn't include 0
+car::Anova(m1.lmer,type='II') #interaction is not significant, i think its a bust
 
 plot(m1.lmer)
 # again no clear pattern
@@ -776,7 +773,19 @@ all.climate.pheno = all.climate.pheno %>% rename(late.season.PPT_mm = late.seaon
 all.climate.pheno = all.climate.pheno %>% select(year,spring.Tmax_C,spring.Tmin_C,spring.PPT_mm,summer.Tmax_C,summer.Tmin_C,summer.PPT_mm,fall.Tmax_C,fall.Tmin_C,fall.PPT_mm,early.season.Tmax_C,early.season.Tmin_C,early.season.PPT_mm,mid.season.Tmax_C,mid.season.Tmin_C,mid.season.PPT_mm,late.season.Tmax_C,late.season.Tmin_C,late.season.PPT_mm,annual.Tmax_C,annual.Tmin_C,annual.PPT_mm,elevation_m,combo_NO)
 pheno.variables = summarized.pheno.all %>% left_join(all.climate.pheno,join_by(year==year,combo_NO==combo_NO))
 pheno.variables = pheno.variables[complete.cases(pheno.variables),]
+
 ########## lets look at the phenology variables and see if anyhting seems reasonable #############################################
+pheno.variables = pheno.variables[pheno.variables$combo_NO %in% sites_to_keep,]
+pheno.variables = pheno.variables %>%
+  filter(Treatment != 'Early.Late.Rotation',
+         Treatment != 'Exclosure',
+         Treatment != 'Rest.Rotation',
+         Treatment != 'Summer.Late.Rotation',
+         Treatment != 'Early.Late.Roatation')
+
+pheno.variables$spring.Tavg_C = (pheno.variables$spring.Tmax_C + pheno.variables$spring.Tmin_C)/2
+pheno.variables$summer.Tavg_C = (pheno.variables$summer.Tmax_C + pheno.variables$summer.Tmin_C)/2
+pheno.variables$fall.Tavg_C = (pheno.variables$fall.Tmax_C + pheno.variables$fall.Tmin_C)/2
 # start with pos
 ggplot(pheno.variables,aes(annual.Tmax_C,mean.eos)) +
   geom_point()
@@ -798,86 +807,110 @@ summary(lm(early.season.Tmin_C ~ elevation_m,data=pheno.variables))
 #temperature and elevation are super related, should not be used together
 #################################### start with peak of season (mean.pos) #######################33
 # model with site and and year as random effect and no fixed effects
-m2.lmer = lmer(mean.pos ~ 1 + (1|year) + (1|combo_NO), REML = F, data = pheno.variables)
+m1.lmer = lmer(mean.pos ~ 1 + (1|year) + (1|combo_NO), REML = F, data = pheno.variables)
 AIC(logLik(m2.lmer)) #16378
-
+m2.lmer = lmer(mean.pos ~ year + (1|combo_NO), REML = F, data = pheno.variables)
 # now we need to figure out our fixed effects! Treatment is of the most interest but lets see if there are any correlation issues first
 
-# first early season tmax/tmin
-m3.lmer = update(m2.lmer, .~.+ spring.Tmax_C)
-anova(m2.lmer,m3.lmer,test='Chi') ##  p =0.39 -> dont include
+# first spring tavg
+m3.lmer = update(m2.lmer, .~.+ spring.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.000
 
-m3.lmer = update(m2.lmer, .~.+ spring.Tmin_C) ## p = 0.12 -> not great, circle back if nothing else works
-anova(m2.lmer,m3.lmer,test='Chi')
+# next mid season tavg
+m3.lmer = update(m2.lmer, .~.+ summer.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.000
 
-# next mid season tmax/tmin 
-m3.lmer = update(m2.lmer, .~.+ summer.Tmax_C)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.91 -> dont include
-
-m3.lmer = update(m2.lmer, .~.+ summer.Tmin_C)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.07 -> include
 # now precip
 m3.lmer = update(m2.lmer, .~.+ spring.PPT_mm)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.58 -> dont include
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.000000 
 
 m3.lmer = update(m2.lmer, .~.+ summer.PPT_mm) 
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.48 dont include
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.000000
 
-mtest = lmer(mean.pos ~ Treatment + (1|year) + (1|combo_NO),REML = F, data = pheno.variables)
-anova(m2.lmer,mtest)# p = 0.49
+mtest = lmer(mean.pos ~ Treatment + year + (1|combo_NO),REML = F, data = pheno.variables)
+anova(m2.lmer,mtest)# p = 0.03
 
 # since we are not going to use elevation, the only fixed effect outside treatment will be
 # summer min temp
-m1.lmer = lmer(mean.pos ~ 1 + (1|year) + (1|combo_NO) + summer.Tmin_C, REML = F, data = pheno.variables)
+m1.lmer = lmer(mean.pos ~ year + spring.Tavg_C + spring.PPT_mm + summer.Tavg_C + summer.PPT_mm + (1|combo_NO), REML = F, data = pheno.variables)
 # lets look at treatment
 m2.lmer = update(m1.lmer, .~.+ Treatment)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.42
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.0005 ################################ need to figure out what this means!!!
+confint(m2.lmer) # all include 0
+car::Anova(m2.lmer,type='II') #treatment is allegedly important
+emmeans(m2.lmer, ~ Treatment) # they all overlap
+pairs(emmeans(m2.lmer, ~ Treatment)) # no significant differences
+plot(emmeans(m2.lmer, ~ Treatment))
+plot(m1.lmer, Treatment ~ resid(.), abline = 0 ) # generate diagnostic plots
 
-m2.lmer = update(m1.lmer, .~.+ Treatment*summer.Tmax_C)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.15
+# seeing a lot of outliers in early and summer
 
-##### it would appear that there is nothing for treatment and peak of season.....
+plot(m1.lmer, resid(., type = "pearson") ~ fitted(.) | Treatment, id = 0.05, 
+     adj = -0.3, pch = 20, col = "gray40")
+
+# looks pretty random
+summary(m2.lmer)
+
+# Random effects:
+#   Groups   Name        Variance Std.Dev.
+# combo_NO (Intercept) 136.3    11.67   
+# Residual             594.6    24.38   
+# Number of obs: 1636, groups:  combo_NO, 106
+# 
+# Fixed effects:
+#   Estimate Std. Error t value
+# (Intercept)                   723.89259  271.76788   2.664
+# year                           -0.25014    0.13523  -1.850
+# spring.Tavg_C                  -3.35158    0.53363  -6.281
+# spring.PPT_mm                   0.05725    0.01300   4.404
+# summer.Tavg_C                  -1.33256    0.79989  -1.666
+# summer.PPT_mm                   0.12758    0.02953   4.320
+# TreatmentEarly                 -1.21272    4.34731  -0.279
+# TreatmentEarly.Late.Roatation  -0.89598   10.36954  -0.086
+# TreatmentExclosure              0.10005    8.53947   0.012
+# TreatmentLate                  -8.39900    5.90628  -1.422
+# TreatmentRest.Rotation          0.60832   14.10297   0.043
+# TreatmentSummer               -14.04337    4.50689  -3.116
+# TreatmentSummer.Late.Rotation  -6.86698   10.50365  -0.654
 ##############################3
 # next with sos
 
 #temperature and elevation are super related, should not be used together
 
 # model with site and and year as random effect and no fixed effects
-m2.lmer = lmer(mean.sos ~ 1 + (1|year) + (1|combo_NO), REML = F, data = pheno.variables)
+m1.lmer = lmer(mean.sos ~ year + (1|combo_NO), REML = F, data = pheno.variables)
 AIC(logLik(m2.lmer)) #17041
 
+m2.lmer = lmer(mean.sos ~ year + (1|combo_NO), REML = F, data = pheno.variables)
 # now we need to figure out our fixed effects! Treatment is of the most interest but lets see if there are any correlation issues first
 
 # first early season tmax/tmin
-m3.lmer = update(m2.lmer, .~.+ spring.Tmax_C)
-anova(m2.lmer,m3.lmer,test='Chi') ##  p =0.007 -> dont include
-
-m3.lmer = update(m2.lmer, .~.+ spring.Tmin_C) 
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.0007 model is even better, so include tmin but not tmax due to collinearity
+m3.lmer = update(m2.lmer, .~.+ spring.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') # significant
 
 # going to skip summer since sos are before summer
 
 # now precip
 m3.lmer = update(m2.lmer, .~.+ spring.PPT_mm)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.03 -> include
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.000003 -> include
 
 # so spring tmin and ppt are both in
-m3.lmer = update(m2.lmer, .~. + spring.Tmin_C + spring.PPT_mm)
+m3.lmer = update(m2.lmer, .~. + spring.Tavg_C + spring.PPT_mm)
 anova(m2.lmer,m3.lmer,test='Chi') # p = 0.00001 -> wooo
 
 mtest = update(m2.lmer, .~.+ Treatment)
-anova(m2.lmer,mtest)# p = 0.93 ooof
+anova(m2.lmer,mtest)# p = 0.67
 
-m1.lmer = lmer(mean.sos ~ 1 + (1|year) + (1|combo_NO) + spring.Tmin_C + spring.PPT_mm, REML = F, data = pheno.variables)
+m1.lmer = lmer(mean.sos ~ year + (1|combo_NO) + spring.Tavg_C + spring.PPT_mm, REML = F, data = pheno.variables)
 # lets look at treatment
 m2.lmer = update(m1.lmer, .~.+ Treatment)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.87
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.053 hmmmmmmm
 
-m2.lmer = update(m1.lmer, .~.+ Treatment*spring.Tmin_C)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.98
+m2.lmer = update(m1.lmer, .~.+ Treatment*spring.Tavg_C)
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.51
 
 m2.lmer = update(m1.lmer, .~.+ Treatment*spring.PPT_mm)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.95
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.51
 ##### it would appear that there is nothing for treatment and start of season.....
 
 ##############################3
@@ -886,99 +919,93 @@ anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.95
 #temperature and elevation are super related, should not be used together
 
 # model with site and and year as random effect and no fixed effects
-m2.lmer = lmer(mean.eos ~ 1 + (1|year) + (1|combo_NO), REML = F, data = pheno.variables)
+m1.lmer = lmer(mean.eos ~ 1 + (1|year) + (1|combo_NO), REML = F, data = pheno.variables)
 AIC(logLik(m2.lmer)) #17041
 
+m2.lmer = lmer(mean.eos ~ year + (1|combo_NO), REML = F, data = pheno.variables)
 # now we need to figure out our fixed effects! Treatment is of the most interest but lets see if there are any correlation issues first
 
 # first early season tmax/tmin
-m3.lmer = update(m2.lmer, .~.+ spring.Tmax_C)
-anova(m2.lmer,m3.lmer,test='Chi') ##  p =0.34 -> dont include
-
-m3.lmer = update(m2.lmer, .~.+ spring.Tmin_C) 
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.06 probably include
+m3.lmer = update(m2.lmer, .~.+ spring.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.001
 
 # summer 
-m3.lmer = update(m2.lmer, .~.+ summer.Tmax_C)
-anova(m2.lmer,m3.lmer,test='Chi') ##  p =0.19 -> dont include
-
-m3.lmer = update(m2.lmer, .~.+ summer.Tmin_C) 
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.10 maybe include
+m3.lmer = update(m2.lmer, .~.+ summer.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.14
 
 # fall
-m3.lmer = update(m2.lmer, .~.+ fall.Tmax_C)
-anova(m2.lmer,m3.lmer,test='Chi') ##  p =0.52 -> dont include
-
-m3.lmer = update(m2.lmer, .~.+ fall.Tmin_C) 
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.53 dont include
+m3.lmer = update(m2.lmer, .~.+ fall.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.00000
 
 # now precip
 m3.lmer = update(m2.lmer, .~.+ spring.PPT_mm)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.59 -> dont include
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.98 -> dont include
 
 m3.lmer = update(m2.lmer, .~.+ summer.PPT_mm)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.93 -> dont include
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.0000 -> dont include
 
 m3.lmer = update(m2.lmer, .~.+ fall.PPT_mm)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.001 -> include!
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.01 -> include!
 
-# so spring tmin, summer tmin and fall ppt are all in
-m3.lmer = update(m2.lmer, .~. + spring.Tmin_C + summer.Tmin_C + fall.PPT_mm)
-anova(m2.lmer,m3.lmer,test='Chi') # p = 0.004 -> wooo
+# so spring tavg, fall tavg, summer ppt and fall ppt are all in
+m3.lmer = update(m2.lmer, .~. + spring.Tavg_C + fall.Tavg_C + summer.PPT_mm + fall.PPT_mm)
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.00000 -> wooo
 
 mtest = update(m2.lmer, .~.+ Treatment)
-anova(m2.lmer,mtest)# p = 0.07 interesting!!
-confint(mtest) ## once again all treatment confints include 0...
+anova(m2.lmer,mtest)# p = 0.17
 
-m1.lmer = lmer(mean.eos ~ 1 + (1|year) + (1|combo_NO) + spring.Tmin_C + summer.Tmin_C + fall.PPT_mm, REML = F, data = pheno.variables)
+
+m1.lmer = lmer(mean.eos ~ year + (1|combo_NO) + spring.Tavg_C + fall.Tavg_C + summer.PPT_mm + fall.PPT_mm, REML = F, data = pheno.variables)
 confint(m1.lmer) # only fall.PPT_mm doesn't contain 0
-m1.lmer = lmer(mean.eos ~ 1 + (1|year) + (1|combo_NO) + fall.PPT_mm, REML = F, data = pheno.variables)
+
 # lets look at treatment
 m2.lmer = update(m1.lmer, .~.+ Treatment)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.05!!!! significant results!!
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.26
 
-m2.lmer = update(m1.lmer, .~.+ Treatment*spring.Tmin_C)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.22
+m2.lmer = update(m1.lmer, .~.+ Treatment*spring.Tavg_C)
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.27
 
-m2.lmer = update(m1.lmer, .~.+ Treatment*summer.Tmin_C)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.07 meh
+m2.lmer = update(m1.lmer, .~.+ Treatment*fall.Tavg_C)
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.29 meh
 
 m2.lmer = update(m1.lmer, .~.+ Treatment*fall.PPT_mm)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.16
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.11
 
-##### it would appear that treatment is important for end of season!!!
+##### wothout low sample size treatments it would seem there is nothing for end of season......
 
-m1.lmer = lmer(mean.eos ~ 1 + (1|year) + (1|combo_NO) + fall.PPT_mm, REML = F, data = pheno.variables)
+m1.lmer = lmer(mean.eos ~ year + (1|combo_NO) + spring.Tavg_C + fall.Tavg_C + summer.PPT_mm + fall.PPT_mm, REML = F, data = pheno.variables)
 # lets look at treatment
 m2.lmer = update(m1.lmer, .~.+ Treatment)
-anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.05!!!! significant results!!
+anova(m1.lmer,m2.lmer,test='Chi') ## p = 0.06
 confint(m2.lmer)
 ## however upon looking at confints all treatment confints contain 0....
 car::Anova(m2.lmer,type='II') #both are significant
 emmeans(m2.lmer, ~ Treatment) # they all overlap
 pairs(emmeans(m2.lmer, ~ Treatment)) # no significant differences
+plot(emmeans(m2.lmer, ~ Treatment)) # no significant differences
 summary(m2.lmer)
 
-#Random effects:
-#  Groups   Name        Variance Std.Dev.
-#combo_NO (Intercept)  98.48    9.924  
-#year     (Intercept) 154.71   12.438  
-#Residual             598.56   24.466  
-#Number of obs: 1771, groups:  combo_NO, 116; year, 17
-
-#Fixed effects:
-#  Estimate Std. Error t value
-#(Intercept)                   328.86256   17.93782  18.333
-#spring.Tmin_C                   1.60291    2.09475   0.765
-#summer.Tmin_C                  -0.26987    2.23296  -0.121
-#fall.PPT_mm                    -0.10951    0.03272  -3.347
-#TreatmentEarly                 -5.56522    3.70494  -1.502
-#TreatmentEarly.Late.Roatation  12.19430    9.24920   1.318
-#TreatmentExclosure              1.22711    7.54984   0.163
-#TreatmentLate                  -3.41990    4.92041  -0.695
-#TreatmentRest.Rotation         -5.69078   12.62452  -0.451
-#TreatmentSummer                 1.69929    3.90982   0.435
-#TreatmentSummer.Late.Rotation  13.90143    9.36662   1.484
+# Random effects:
+#   Groups   Name        Variance Std.Dev.
+# combo_NO (Intercept) 101.7    10.09   
+# Residual             708.7    26.62   
+# Number of obs: 1636, groups:  combo_NO, 106
+# 
+# Fixed effects:
+#   Estimate Std. Error t value
+# (Intercept)                   -16.388979 299.284221  -0.055
+# year                            0.175675   0.148974   1.179
+# spring.Tavg_C                  -1.402676   0.501904  -2.795
+# fall.Tavg_C                    -3.037936   0.641695  -4.734
+# summer.PPT_mm                  -0.096775   0.029486  -3.282
+# fall.PPT_mm                    -0.004963   0.021479  -0.231
+# TreatmentEarly                 -6.696191   3.990153  -1.678
+# TreatmentEarly.Late.Roatation  17.945852   9.603361   1.869
+# TreatmentExclosure             -3.895893   7.880124  -0.494
+# TreatmentLate                  -9.883751   5.454557  -1.812
+# TreatmentRest.Rotation          5.718979  13.071435   0.438
+# TreatmentSummer                -4.369270   4.150990  -1.053
+# TreatmentSummer.Late.Rotation   9.455586   9.793146   0.966
 
 summary(aov(pos ~ Treatment,data=average.summarized.pheno.all)) #0.18
 summary(aov(sos ~ Treatment,data=average.summarized.pheno.all)) #0.89
@@ -1000,7 +1027,64 @@ summary(aov(gs_integral ~ Treatment,data=fitted.response.annual.average)) #0.57
 summary(aov(annual_integral ~ Treatment,data=fitted.response.annual.average)) #0.722
 summary(aov(peak_NDVI ~ Treatment,data=fitted.response.annual.average)) #0.38
 
+################################ check out length of season??? ##########################################33
+pheno.variables$mean.los = pheno.variables$mean.eos - pheno.variables$mean.sos
+pheno.variables = pheno.variables[pheno.variables$mean.los < 300,]
 
+m2.lmer = lmer(mean.los ~ year + (1|combo_NO), REML = F, data = pheno.variables)
+# first early season tmax/tmin
+m3.lmer = update(m2.lmer, .~.+ spring.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.001
+
+# summer 
+m3.lmer = update(m2.lmer, .~.+ summer.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.0000
+
+# fall
+m3.lmer = update(m2.lmer, .~.+ fall.Tavg_C)
+anova(m2.lmer,m3.lmer,test='Chi') #0.03
+
+# now precip
+m3.lmer = update(m2.lmer, .~.+ spring.PPT_mm)
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.03
+
+m3.lmer = update(m2.lmer, .~.+ summer.PPT_mm)
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.89
+
+m3.lmer = update(m2.lmer, .~.+ fall.PPT_mm)
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.0000000000
+
+# so spring tavg, fall tavg, summer ppt and fall ppt are all in
+m3.lmer = update(m2.lmer, .~. + spring.Tavg_C + summer.Tavg_C + fall.Tavg_C + spring.PPT_mm + fall.PPT_mm)
+anova(m2.lmer,m3.lmer,test='Chi') # p = 0.00000 -> wooo
+car::Anova(m3.lmer,type='II') # based on this lets drop summer temp and fall temp
+
+m1.lmer = lmer(mean.los ~ year + spring.Tavg_C + spring.PPT_mm + fall.PPT_mm + (1|combo_NO), data = pheno.variables)
+car::Anova(m1.lmer,type='II') # looks like get rid of spring precip
+
+m1.lmer = lmer(mean.los ~ year + spring.Tavg_C + fall.PPT_mm + (1|combo_NO), data = pheno.variables)
+car::Anova(m1.lmer,type='II') # looks like get rid of spring precip
+
+mtest = update(m1.lmer, .~.+ Treatment)
+anova(m2.lmer,mtest)# p = 0.0000000 ## wowza
+car::Anova(mtest,type='II') # shows treatment as being very unimportant
+emmeans(mtest,~Treatment)
+plot(emmeans(mtest,~Treatment))
+pairs(emmeans(mtest,~Treatment)) # no significant differences
+
+mtest = update(m1.lmer, .~.+ spring.Tavg_C*Treatment)
+anova(m2.lmer,mtest)# p = 0.0000000 ## wowza
+car::Anova(mtest,type='II') # shows treatment and the interaction as being very unimportant
+emmeans(mtest,~spring.Tavg_C*Treatment)
+plot(emmeans(mtest,~spring.Tavg_C*Treatment))
+pairs(emmeans(mtest,~spring.Tavg_C*Treatment)) # no significant differences
+
+mtest = update(m1.lmer, .~.+ fall.PPT_mm*Treatment)
+anova(m2.lmer,mtest)# p = 0.0000000 ## wowza
+car::Anova(mtest,type='II') # shows treatment and the interaction as being very unimportant
+emmeans(mtest,~spring.Tavg_C*Treatment)
+plot(emmeans(mtest,~spring.Tavg_C*Treatment))
+pairs(emmeans(mtest,~spring.Tavg_C*Treatment)) # no significant differences
 ####################33 scratch work ################################################
 pre.landsat = data.frame(DATE_ACQUIRED = as.character(),NDVI = as.numeric(),QA_PIXEL = as.numeric(),combo_NO = as.character())
 for(i in combo_List){
