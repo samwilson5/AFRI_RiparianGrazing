@@ -3,8 +3,9 @@ library(ggplot2)
 library(Kendall)
 library(ggpubr)
 
+################ Perform Mann-Kendall tests on field variables #############################
 # Load in field data
-field.data = read.csv('C:/Users/samwi/OneDrive - University of Idaho/SalmonFieldData_combined.csv')
+field.data = read.csv('Data/SalmonFieldData_combined.csv')
 
 for(i in 1:nrow(field.data)){
   if(field.data[i,4]=='092-02-K'){
@@ -45,7 +46,7 @@ field.sum[c('GGW.MK','bankfull.width.MK','D50.MK',
 measures = c('GGW','bankfull.width','D50','percent.fines',
              'covered.stable','stable','wetland.rating')
 
-# Loop through each metric for each pasture and perform a MannKendall test
+# Loop through each metric for each pasture and perform a Mann-Kendall test
 # to identify significant trends
 # return NA if too few observations
 for(i in pasts){
@@ -62,6 +63,8 @@ for(i in pasts){
   }
 }
 
+# save csv with p-values
+write.csv(field.sum,'Data/SFO_fieldData_MannKendall.csv')
 
 # Create a plot item for each pasture and metric, graphing the metric over time
 # also adding text about the significance of the relationship for each graph
@@ -82,112 +85,26 @@ plot_list <- lapply(split(field.sum, field.sum$Pasture), function(x)
   else{NA}
 })
 plot_list = plot_list[!is.na(plot_list)]
-#for(i in 1:length(plot_list)){print(plot_list[[i]])}
+for(i in 1:length(plot_list)){print(plot_list[[i]])}
 # Loop through each graph item and save it to the relevant folder
-#for(i in 1:length(plot_list)){
-#  title = plot_list[[i]]$data$Pasture[1]
-#  png(paste0('C:/Users/Sam/OneDrive - University of Idaho/UI_ResearchTech/MannKendall_fieldData/wetland.rating/',title,'.png'))
-#  print(plot_list[[i]])
-#  dev.off()
-#}
-
-rows = ceiling(length(plot_list)/3)
-png('C:/Users/Sam/OneDrive - University of Idaho/UI_ResearchTech/MannKendall_fieldData/percent.fines/combined.png')
-ggarrange(plot_list[[1]],ncol = 1, nrow = rows)
-dev.off()
-
-
-#,plot_list[[2]],plot_list[[3]],plot_list[[4]],plot_list[[5]],
-#plot_list[[6]],plot_list[[7]],plot_list[[8]],plot_list[[9]],plot_list[[10]],
-#plot_list[[11]],plot_list[[12]],plot_list[[13]],plot_list[[14]],plot_list[[15]],
-#plot_list[[16]],plot_list[[17]]
-################################################################################################
-# now lets look at only MIM data to see if things change??
-
-# Load in field data
-field.data = read.csv('C:/Users/Sam/OneDrive - University of Idaho/SalmonFieldData_combined.csv')
-
-field.sum = field.data %>%
-  filter(Protocol == 'MIM') %>% 
-  group_by(Allotment,Pasture) %>%
-  filter(n() > 3)
-
-# Get a list of all pastures that we have data for
-pasts = unique(field.sum$MIM.siteName)
-
-# create columns for the p-values to be stored by pasture and by metric
-field.sum[c('GGW.MK','bankfull.width.MK','D50.MK',
-            'percent.fines.MK','covered.stable.MK','stable.MK',
-            'wetland.rating.MK')] = 0
-measures = c('GGW','bankfull.width','D50','percent.fines',
-             'covered.stable','stable','wetland.rating')
-
-# Loop through each metric for each pasture and perform a MannKendall test
-# to identify significant trends
-# return NA if too few observations
-for(i in pasts){
-  locs = which(field.sum$MIM.siteName == i)
-  df.lim = field.sum[locs,]
-  for(k in measures){
-    pvalue = ifelse(
-      isTRUE(grep('WARNING',capture.output(MannKendall(unlist(df.lim[k]))))==1),
-      NA,
-      MannKendall(unlist(df.lim[k]))$sl
-    )
-    co = paste0(k,'.MK')
-    field.sum[locs,co] = pvalue
-  }
+for(i in 1:length(plot_list)){
+  title = plot_list[[i]]$data$Pasture[1]
+  png(paste0(title,'.png'))
+  print(plot_list[[i]])
+  dev.off()
 }
-write.csv(field.sum,'C:/Users/Sam/OneDrive - University of Idaho/MIM_analyzed.csv')
-################################################################################################
-# now lets look at only PIBO data to see if things change??
-
-# Load in field data
-field.data = read.csv('C:/Users/Sam/OneDrive - University of Idaho/SalmonFieldData_combined.csv')
-
-field.sum = field.data %>%
-  filter(Protocol == 'PIBO') %>% 
-  group_by(PIBO.siteName) %>%
-  filter(n() > 3)
-
-# Get a list of all pastures that we have data for
-pasts = unique(field.sum$PIBO.siteName)
-
-# create columns for the p-values to be stored by pasture and by metric
-field.sum[c('GGW.MK','bankfull.width.MK','D50.MK',
-            'percent.fines.MK','covered.stable.MK','stable.MK',
-            'wetland.rating.MK')] = 0
-measures = c('GGW','bankfull.width','D50','percent.fines',
-             'covered.stable','stable','wetland.rating')
-
-# Loop through each metric for each pasture and perform a MannKendall test
-# to identify significant trends
-# return NA if too few observations
-for(i in pasts){
-  locs = which(field.sum$PIBO.siteName == i)
-  df.lim = field.sum[locs,]
-  for(k in measures){
-    pvalue = ifelse(
-      isTRUE(grep('WARNING',capture.output(MannKendall(unlist(df.lim[k]))))==1),
-      NA,
-      MannKendall(unlist(df.lim[k]))$sl
-    )
-    co = paste0(k,'.MK')
-    field.sum[locs,co] = pvalue
-  }
-}
-
-write.csv(field.sum,'C:/Users/Sam/OneDrive - University of Idaho/PIBO_analyzed.csv')
-
-
-
 
 ################################################################################
+#### Perform NMDS and assess differneces in scaled variables between treatments ###########
 library(vegan)
 library(dplyr)
-# Load in field data
-field.data = read.csv('C:/Users/samwi/OneDrive - University of Idaho/SalmonFieldData_combined.csv')
+library(stringr)
+library(ggplot2)
 
+# Load in field data
+field.data = read.csv('Data/SalmonFieldData_combined.csv')
+
+# cow creek has two sites, need to make sure they stay separate
 for(i in 1:nrow(field.data)){
   if(field.data[i,4]=='092-02-K'){
     field.data[i,2] = 'Lower Cow Creek 02-K'
@@ -197,145 +114,9 @@ for(i in 1:nrow(field.data)){
   }
 }
 
-# For combining field data protocols, this summarises the data for when there were multiple
+# For combining field data protocols, this summarizes the data for when there were multiple
 # measures for a single year
 # also filter out pastures that have less than 4 observations
-field.sum = field.data %>%
-  group_by(MIM.siteName,PIBO.siteName,Year) %>%
-  summarise(#MIM.siteName = MIM.siteName,
-    #PIBO.siteName = PIBO.siteName,
-    Unique = paste0(first(MIM.siteName),'_',first(PIBO.siteName)),
-    Allotment = first(Allotment),
-    Pasture = first(Pasture),
-    GGW = mean(GGW),
-    bankfull.width = mean(bankfull.width),
-    D50 = mean(D50),
-    percent.fines = mean(percent.fines),
-    covered.stable = mean(covered.stable),
-    stable = mean(stable),
-    wetland.rating = mean(wetland.rating))
-
-treatments = read.csv('C:/Users/samwi/OneDrive - University of Idaho/salmonFieldData_treatments.csv')
-
-field.sum.treat = field.sum %>% left_join(treatments, join_by(Allotment == Allotment, Pasture == Pasture))
-field.sum.treat$Treatment = ifelse(field.sum.treat$Treatment == '',
-                                   NA,
-                                   field.sum.treat$Treatment)
-
-field.sum.treat = field.sum.treat[!is.na(field.sum.treat$Treatment),]
-
-nmds.field = field.sum.treat
-nmds.field = nmds.field[!is.na(nmds.field$bankfull.width),]
-nmds.field = nmds.field[!is.na(nmds.field$D50),]
-nmds.field = nmds.field[!is.na(nmds.field$stable),]
-#nmds.field = nmds.field[!is.na(nmds.field$wetland.rating),]
-#nmds.field = nmds.field[!is.na(nmds.field$percent.fines),]
-
-#make community matrix - extract columns with abundance information
-#com = nmds.field[,c(8,9,11,13)]
-com = nmds.field[,c(8,9,11)]
-
-#turn abundance data frame into a matrix
-m_com = as.matrix(com)
-
-set.seed(123)
-nmds = metaMDS(m_com, distance = "bray")
-nmds
-plot(nmds)
-
-#extract NMDS scores (x and y coordinates) for sites from newer versions of vegan package
-data.scores = as.data.frame(scores(nmds)$sites)
-
-#add columns to data frame 
-data.scores$Treatment = nmds.field$Treatment
-
-head(data.scores)
-library(ggplot2)
-ggplot(data.scores, aes(x = NMDS1, y = NMDS2)) + 
-  geom_point(size = 4, aes(colour = Treatment)) + 
-  theme(axis.text.y = element_text(colour = "black", size = 12, face = "bold"),
-        axis.text.x = element_text(colour = "black", face = "bold", size = 12), 
-        legend.text = element_text(size = 12, face ="bold", colour ="black"), 
-        legend.position = "right", axis.title.y = element_text(face = "bold", size = 14), 
-        axis.title.x = element_text(face = "bold", size = 14, colour = "black"), 
-        legend.title = element_text(size = 14, colour = "black", face = "bold"), 
-        panel.background = element_blank(), 
-        panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
-        legend.key=element_blank()) + 
-  labs(x = "NMDS1", colour = "Treatment", y = "NMDS2")
-
-ordiplot(nmds,type="n")
-ordihull(nmds,groups=data.scores$Treatment,draw="polygon",col="grey90",label=F)
-orditorp(nmds,display = 'sites',col="red",air=0.01)
-
-ordiplot(nmds,type="n")
-ordiellipse(nmds,groups=data.scores$Treatment,draw="polygon",col="grey90",label=F)
-orditorp(nmds,display = 'sites',col="red",air=0.01)
-
-# lets use a permanova to see if there is a difference between groups in this space
-adonis2(data.scores[,c('NMDS1','NMDS2')] ~ data.scores$Treatment,
-        method = 'euc') # p = 0.001 significant difference
-
-# we will use betadisper to see if there is significant differnce between dispersion
-# if not then the permanova is likely pointing to differences in centroids
-
-# use the betadisper function from 'vegan' to measure the distances between points
-# and the centroid of their group
-ordinationDist = betadisper(d = dist(data.scores[,c('NMDS1','NMDS2')]),
-                            group = data.scores$Treatment,
-                            type = 'centroid')
-ordinationDist$distances
-plot(ordinationDist)
-
-# is there a difference in dispersion between groups?
-anova(ordinationDist) #p-value equals 0.087 so there is some difference
-adonis2(dist(ordinationDist$distances) ~ data.scores$Treatment) #p = 0.09
-
-TukeyHSD(ordinationDist) # no significant differences between any groups in dispersion
-
-summary(aov(data.scores$NMDS1 ~ data.scores$Treatment))
-summary(aov(data.scores$NMDS2 ~ data.scores$Treatment))
-
-# im concerned that the lack of samples in a few groups might be influencing things,
-# gonna drop rest-rotation,rotation, and late and see what happens
-
-data.scores = data.scores[data.scores$Treatment!= 'Late',]
-data.scores = data.scores[data.scores$Treatment!= 'Rest.Rotation',]
-data.scores = data.scores[data.scores$Treatment!= 'Rotation',]
-
-# lets use a permanova to see if there is a difference between groups in this space
-adonis2(data.scores[,c('NMDS1','NMDS2')] ~ data.scores$Treatment,
-        method = 'euc') # p = 0.001 significant difference
-
-# use the betadisper function from 'vegan' to measure the distances between points
-# and the centroid of their group
-ordinationDist = betadisper(d = dist(data.scores[,c('NMDS1','NMDS2')]),
-                            group = data.scores$Treatment,
-                            type = 'centroid')
-ordinationDist$distances
-plot(ordinationDist)
-
-# is there a difference in dispersion between groups?
-anova(ordinationDist) #p= 0.18
-adonis2(dist(ordinationDist$distances) ~ data.scores$Treatment) #p = 0.17
-
-
-# generally, there seems to be significant differences in centroid but not in dispersion
-
-#################################################################################
-# now lets look at just beginning and end data 
-# Load in field data
-field.data = read.csv('C:/Users/samwi/OneDrive - University of Idaho/SalmonFieldData_combined.csv')
-treatments = read.csv('C:/Users/samwi/OneDrive - University of Idaho/salmonFieldData_treatments.csv')
-for(i in 1:nrow(field.data)){
-  if(field.data[i,4]=='092-02-K'){
-    field.data[i,2] = 'Lower Cow Creek 02-K'
-  }
-  if(field.data[i,4]=='092-02-I'){
-    field.data[i,2] = 'Lower Cow Creek 02-I'
-  }
-}
-
 field.sum = field.data %>%
   group_by(MIM.siteName,PIBO.siteName,Year) %>%
   summarise(#MIM.siteName = MIM.siteName,
@@ -353,16 +134,150 @@ field.sum = field.data %>%
   group_by(MIM.siteName,PIBO.siteName) %>%
   filter(n() > 3)
 
+## switch this to alltreatments and move that csv into the data folder
+#treatments = read.csv('C:/Users/samwi/OneDrive - University of Idaho/salmonFieldData_treatments.csv')
+treatments = read.csv('Data/SFO_allTreatments.csv')
+treatments$Pasture = str_replace(treatments$Pasture,'W\\. Sandy','West Sandy')
+treatments$Allotment = str_replace(treatments$Allotment,'Ryegrass\\/North Hayden','Ryegrass')
+treatments$Pasture = str_replace(treatments$Pasture,'Ryegrass BLM','Ryegrass')
+treatments$Pasture = str_replace(treatments$Pasture,'Ramsey MTN\\.','Ramsey Mountain')
+treatments$Pasture = str_replace(treatments$Pasture,'Upper Reese','Upper Reese Creek')
+
 field.sum.treat = field.sum %>% left_join(treatments, join_by(Allotment == Allotment, Pasture == Pasture))
 field.sum.treat$Treatment = ifelse(field.sum.treat$Treatment == '',
                                    NA,
                                    field.sum.treat$Treatment)
+
+field.sum.treat = field.sum.treat[!is.na(field.sum.treat$Treatment),]
+
+# not enough observations to justify keeping Rest.Rotation
+field.sum.treat = field.sum.treat[field.sum.treat$Treatment!= 'Rest.Rotation',]
+
+nmds.field = field.sum.treat
+nmds.field = nmds.field[!is.na(nmds.field$bankfull.width),]
+nmds.field = nmds.field[!is.na(nmds.field$D50),]
+nmds.field = nmds.field[!is.na(nmds.field$stable),]
+nmds.field = nmds.field[!is.na(nmds.field$wetland.rating),]
+#nmds.field = nmds.field[!is.na(nmds.field$percent.fines),]
+
+#make community matrix - extract columns with abundance information
+com = nmds.field[,c(8,9,11,13)]
+#com = nmds.field[,c(8,9,11)]
+
+#turn abundance data frame into a matrix
+m_com = as.matrix(com)
+
+set.seed(123)
+nmds = metaMDS(m_com, distance = "bray")
+nmds
+plot(nmds)
+
+#extract NMDS scores (x and y coordinates) for sites from newer versions of vegan package
+data.scores = as.data.frame(scores(nmds)$sites)
+
+#add columns to data frame 
+data.scores$Treatment = nmds.field$Treatment
+
+# ordination plot
+
+ggplot(data.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(size = 4, aes(colour = Treatment)) + 
+  theme(axis.text.y = element_text(colour = "black", size = 18, face = "bold"),
+        axis.text.x = element_text(colour = "black", face = "bold", size = 18), 
+        legend.text = element_text(size = 12, face ="bold", colour ="black"), 
+        legend.position = 'inside',
+        legend.position.inside = c(0.85,0.85),
+        axis.title.x = element_text(face = "bold", size = 22, colour = "black"),
+        axis.title.y = element_text(face = "bold", size = 22, colour = "black"),
+        legend.title = element_text(size = 22, colour = "black", face = "bold"), 
+        panel.background = element_blank(), 
+        panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank()) + 
+  labs(x = "NMDS1", colour = "Treatment", y = "NMDS2")
+
+
+
+# lets use a permanova to see if there is a difference between groups in this space
+adonis2(data.scores[,c('NMDS1','NMDS2')] ~ data.scores$Treatment,
+        method = 'euc') # p = 0.004 significant difference
+
+# we will use betadisper to see if there is significant differnce between dispersion
+# if not then the permanova is likely pointing to differences in centroids
+
+# use the betadisper function from 'vegan' to measure the distances between points
+# and the centroid of their group
+ordinationDist = betadisper(d = dist(data.scores[,c('NMDS1','NMDS2')]),
+                            group = data.scores$Treatment,
+                            type = 'centroid')
+ordinationDist$distances
+plot(ordinationDist)
+
+# is there a difference in dispersion between groups?
+anova(ordinationDist) #p-value equals 0.3 so no difference in dispersion
+adonis2(dist(ordinationDist$distances) ~ data.scores$Treatment) #p = 0.09
+
+TukeyHSD(ordinationDist) # no significant differences between any groups in dispersion
+
+summary(aov(data.scores$NMDS1 ~ data.scores$Treatment))
+summary(aov(data.scores$NMDS2 ~ data.scores$Treatment))
+
+# generally, there seems to be significant differences in centroid but not in dispersion
+
+#################################################################################
+## Assess differences in "treatment effect" or just difference between first and last observation
+# now lets look at just beginning and end data 
+# Load in field data
+field.data = read.csv('Data/SalmonFieldData_combined.csv')
+treatments = read.csv('Data/SFO_alltreatments.csv')
+
+# correct a few differences in naming conventions between different BLM data
+treatments$Pasture = str_replace(treatments$Pasture,'W\\. Sandy','West Sandy')
+treatments$Allotment = str_replace(treatments$Allotment,'Ryegrass\\/North Hayden','Ryegrass')
+treatments$Pasture = str_replace(treatments$Pasture,'Ryegrass BLM','Ryegrass')
+treatments$Pasture = str_replace(treatments$Pasture,'Ramsey MTN\\.','Ramsey Mountain')
+treatments$Pasture = str_replace(treatments$Pasture,'Upper Reese','Upper Reese Creek')
+
+for(i in 1:nrow(field.data)){
+  if(field.data[i,4]=='092-02-K'){
+    field.data[i,2] = 'Lower Cow Creek 02-K'
+  }
+  if(field.data[i,4]=='092-02-I'){
+    field.data[i,2] = 'Lower Cow Creek 02-I'
+  }
+}
+
+# summarise the data where multiple measurements exist for a single year
+# filter out sites that have less than 4 observations
+field.sum = field.data %>%
+  group_by(MIM.siteName,PIBO.siteName,Year) %>%
+  summarise(#MIM.siteName = MIM.siteName,
+    #PIBO.siteName = PIBO.siteName,
+    Unique = paste0(first(MIM.siteName),'_',first(PIBO.siteName)),
+    Allotment = first(Allotment),
+    Pasture = first(Pasture),
+    GGW = mean(GGW),
+    bankfull.width = mean(bankfull.width),
+    D50 = mean(D50),
+    percent.fines = mean(percent.fines),
+    covered.stable = mean(covered.stable),
+    stable = mean(stable),
+    wetland.rating = mean(wetland.rating)) %>% 
+  group_by(MIM.siteName,PIBO.siteName) %>%
+  filter(n() > 3)
+
+# join treatments to the field data
+field.sum.treat = field.sum %>% left_join(treatments, join_by(Allotment == Allotment, Pasture == Pasture))
+#field.sum.treat$Treatment = ifelse(field.sum.treat$Treatment == '',
+#                                   NA,
+#                                   field.sum.treat$Treatment)
+
+# throw out NA's
 field.sum.treat = field.sum.treat[!is.na(field.sum.treat$Treatment),]
 
 
 past_list = unique(field.sum.treat$Unique)
 
-
+# function to find the difference between last and first field measure
 find.change = function(list){
   list2 = na.omit(list)
   if(length(list2) == 0){
@@ -380,6 +295,7 @@ change.df = data.frame(unique = character(),
                        D50 = numeric(),
                        stable = numeric(),
                        wetland.rating = numeric())
+
 for(i in past_list){
   df.limit = field.sum.treat[field.sum.treat$Unique == i,]
   graze = df.limit$Treatment[1]
@@ -398,44 +314,36 @@ for(i in past_list){
   change.df = rbind(change.df,df.new)
 }
 
-adonis2(change.df[,3:6] ~ change.df$Treatment, na.rm = T,
-        method = 'euc') # p = 0.001 significant difference
-
-ggplot(change.df, aes(x = Treatment, y = bankfull.width)) + 
-  geom_boxplot()
-
-ggplot(change.df, aes(x = Treatment, y = D50)) + 
-  geom_boxplot()
-
-ggplot(change.df, aes(x = Treatment, y = stable)) + 
-  geom_boxplot()
-
-ggplot(change.df, aes(x = Treatment, y = wetland.rating)) + 
-  geom_boxplot()
-
-# looks like not much seperation except in D50 with exclosure
-
-change.df = change.df[change.df$Treatment!= 'Continuous',]
+# not enough observations to keep Rest.Rotation, Late,Summer.Late.Rotation or Late.Rotation
 change.df = change.df[change.df$Treatment!= 'Rest.Rotation',]
+change.df = change.df[change.df$Treatment!= 'Late',]
+change.df = change.df[change.df$Treatment!= 'Late.Rotation',]
+change.df = change.df[change.df$Treatment!= 'Summer.Late.Rotation',]
 
 adonis2(change.df[,3:6] ~ change.df$Treatment, na.rm = T,
-        method = 'euc') # p = 0.012
+        method = 'euc') # p = 0.016 significant difference
 
-summary(aov(change.df$bankfull.width ~ change.df$Treatment)) #p = 0.46
+
+summary(aov(change.df$bankfull.width ~ change.df$Treatment)) #p = 0.66
 ggplot(change.df, aes(x = Treatment, y = bankfull.width)) + 
   geom_boxplot()
 
 summary(aov(change.df$D50 ~ change.df$Treatment)) #p = 0.02
-TukeyHSD(aov(change.df$D50 ~ change.df$Treatment)) # exclosure is significantly different than early and summer, early and summer are not different
+TukeyHSD(aov(change.df$D50 ~ change.df$Treatment)) # exclosure and summer are different, exclosure and early and somewhat different 
 ggplot(change.df, aes(x = Treatment, y = D50)) + 
+  theme_bw()+
   geom_boxplot()+
-  annotate('text',x = 'Exclosure',y=19,label = '*',
-           size = 10)
+  theme(axis.text.y = element_text(colour = "black", size = 12, face = "bold"),
+        axis.text.x = element_text(colour = "black", face = "bold", size = 12),
+        axis.title.x = element_text(face = "bold", size = 14, colour = "black"),
+        axis.title.y = element_text(face = "bold", size = 14, colour = "black"),
+        panel.border = element_rect(colour = "black", fill = NA, size = 1.2))+
+  labs(x = 'Treatment',y = 'Median Substrate Effect Size')
 
-summary(aov(change.df$stable ~ change.df$Treatment)) #p = 0.84
+summary(aov(change.df$stable ~ change.df$Treatment)) #p = 0.97
 ggplot(change.df, aes(x = Treatment, y = stable)) + 
   geom_boxplot()
 
-summary(aov(change.df$wetland.rating ~ change.df$Treatment)) #p = 0.27
+summary(aov(change.df$wetland.rating ~ change.df$Treatment)) #p = 0.15
 ggplot(change.df, aes(x = Treatment, y = wetland.rating)) + 
   geom_boxplot()

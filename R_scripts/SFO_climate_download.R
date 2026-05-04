@@ -9,11 +9,7 @@ library(lubridate)
 library(daymetr)
 
 # read in the shapefile with pastures of the SFO
-pasts = shapefile("C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/BLM_GISdata/Field_Office_Extents/Salmon_Pastures.shp")
-# these two allotments are actually in Challis but due to a weird projection, a little got cut
-# drop them
-pasts = pasts[pasts$ALLOT_NAME != 'Allison Creek',]
-pasts = pasts[pasts$ALLOT_NAME != 'Hat Creek',]
+pasts = shapefile("Data/SFO_pastures/Salmon_Pastures.shp")
 
 # what we want for this is a single poly for each allotment, not pasture so merge based on allot
 allots = raster::aggregate(pasts,by='ALLOT_NAME',FUN=sum)
@@ -74,8 +70,9 @@ for(i in 1:85){
   all.climate = rbind(all.climate,tmp.mod1)
 }
 
-write.csv(all.climate,"C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Remote_sensing_READYFORANALYSIS/all_climate.csv")
-
+write.csv(all.climate,"Data/all_climate.csv")
+#####################################################################################
+# Part 2
 # need to create a loop to get weather data for phenology relevant measures
 all.climate = data.frame(spring.Tmax_C = as.numeric(),
                          spring.Tmin_C = as.numeric(),
@@ -127,15 +124,15 @@ for(i in 1:85){
   site_sub$Tavg_C = (site_sub$tmax..deg.c. + site_sub$tmin..deg.c.)/2
   # aggregate by year
   tmp.mod1 = site_sub %>% group_by(year) %>%
-    reframe(spring.Tmax_C = mean(tmax..deg.c.[yday >= 80 & yday < 172]),
-            spring.Tmin_C = mean(tmin..deg.c.[yday >= 80 & yday < 172]),
-           spring.PPT_mm = sum(prcp..mm.day.[yday >= 80 & yday < 172]),
-           summer.Tmax_C = mean(tmax..deg.c.[yday >= 172 & yday < 264]),
-           summer.Tmin_C = mean(tmin..deg.c.[yday >= 172 & yday < 264]),
-           summer.PPT_mm = sum(prcp..mm.day.[yday >= 172 & yday < 264]),
-           fall.Tmax_C = mean(tmax..deg.c.[yday >= 264 & yday < 355]),
-           fall.Tmin_C = mean(tmin..deg.c.[yday >= 264 & yday < 355]),
-           fall.PPT_mm = sum(prcp..mm.day.[yday >= 264 & yday < 355]),
+    reframe(spring.Tmax_C = mean(tmax..deg.c.[yday >= 60 & yday < 152]),
+            spring.Tmin_C = mean(tmin..deg.c.[yday >= 60 & yday < 152]),
+           spring.PPT_mm = sum(prcp..mm.day.[yday >= 60 & yday < 152]),
+           summer.Tmax_C = mean(tmax..deg.c.[yday >= 152 & yday < 244]),
+           summer.Tmin_C = mean(tmin..deg.c.[yday >= 152 & yday < 244]),
+           summer.PPT_mm = sum(prcp..mm.day.[yday >= 152 & yday < 244]),
+           fall.Tmax_C = mean(tmax..deg.c.[yday >= 244 & yday < 335]),
+           fall.Tmin_C = mean(tmin..deg.c.[yday >= 244 & yday < 335]),
+           fall.PPT_mm = sum(prcp..mm.day.[yday >= 244 & yday < 335]),
            early.season.Tmax_C = mean(tmax..deg.c.[yday >= 0 & yday < 121]),
            early.season.Tmin_C = mean(tmin..deg.c.[yday >= 0 & yday < 121]),
            early.season.PPT_mm = mean(prcp..mm.day.[yday >= 0 & yday < 121]),
@@ -154,4 +151,5 @@ for(i in 1:85){
   
   all.climate = rbind(all.climate,tmp.mod1)
 }
-write.csv(all.climate,"C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Remote_sensing_READYFORANALYSIS/all_pheno_climate.csv")
+
+write.csv(all.climate,"Data/all_pheno_climate.csv")
