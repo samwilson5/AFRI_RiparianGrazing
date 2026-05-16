@@ -1087,6 +1087,7 @@ for(i in combo_List){
 }
 rm(list = ls()[grep("*2013", ls())])
 
+dates_use = unique(all.landsat$DATE_ACQUIRED)
 # read in the NDVI fine fitted curves
 fitted.curves = read.csv("Data/phenofit_output/all_fits.csv")
 
@@ -1100,7 +1101,7 @@ fitted.curves$NDVI = ifelse(fitted.curves$NDVI > 1,NA,fitted.curves$NDVI)
 fitted.curves = fitted.curves %>% filter(combo_NO != '06310_02') %>%
   filter(combo_NO != '06301_03') %>%
   filter(combo_NO != '06307_05') %>%
-  filter(combo_NO != '14409_01')
+  filter(combo_NO != '14409_01') 
 
 sites = unique(fitted.curves$combo_NO)
 
@@ -1118,7 +1119,7 @@ for(i in sites){
                 season = "harmonic", breaks = 'LWZ', max.iter = 5)
   # extract the slope of the trend line
   trendSlope.all = (bfm2$output[[1]]$Tt[463] - bfm2$output[[1]]$Tt[1])/(time(bfm2$output[[1]]$Tt)[463] - time(bfm2$output[[1]]$Tt)[1])
-  temp.df = data.frame(combo_NO = i,slope = trendSlope.all)
+  temp.df = data.frame(combo_NO = i,slope = trendSlope.all,start = bfm2$output[[1]]$Tt[1], end = bfm2$output[[1]]$Tt[463])
   trendSlope.df = rbind(trendSlope.df,temp.df)
 }
 
@@ -1133,6 +1134,7 @@ library(ggplot2)
 
 # read in the slope data
 slopes = read.csv('Data/bfast_trendSlope.csv')
+slopes = slopes[complete.cases(slopes),]
 
 # read in the treatment data
 treatments = read.csv('Data/SFO_allTreatments.csv')
@@ -1192,3 +1194,17 @@ ggplot(slopes, aes(x = Treatment, y = slope))  +
   stat_boxplot(geom ='errorbar',width=0.2) + 
   geom_boxplot(outlier.shape = 2) +
   geom_jitter(width = 0.1, alpha = 0.6)
+
+
+ggplot(slopes, aes(x=2000,xend=2020,y=start,yend=end,group=combo_NO))+
+  geom_segment(linewidth=.5,alpha=0.7,color='grey30')+
+  labs(y='NDVI',x='Year')+
+  geom_segment(aes(x=2000,xend=2020,y=mean(start),yend=mean(end)),
+               color='red',
+               linewidth=1.5)+
+  theme_bw()+
+  theme(axis.text.y = element_text(colour = "black", size = 18, face = "bold"),
+        axis.text.x = element_text(colour = "black", face = "bold", size = 18),
+        axis.title.x = element_text(face = "bold", size = 22, colour = "black"),
+        axis.title.y = element_text(face = "bold", size = 22, colour = "black"),
+        panel.border = element_rect(colour = "black", fill = NA, size = 1.2))
