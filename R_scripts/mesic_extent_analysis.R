@@ -34,7 +34,7 @@ for(i in combo_List){
   else{
   temp$avg_area = mean(temp$ndvi_pixels)
   temp$diff_from_avg = temp$ndvi_pixels/temp$avg_area
-  temp = temp %>% select(combo_NO,year,ndvi_pixels, avg_area,diff_from_avg)
+  temp = temp %>% dplyr::select(combo_NO,year,ndvi_pixels, avg_area,diff_from_avg)
   ls_mesic = rbind(ls_mesic,temp)}
 }
 
@@ -135,7 +135,7 @@ actual.use = pastsDF %>% left_join(actual.summarised,join_by(ALLOT_NAME==Allotme
 
 
 
-actual.use = actual.use %>% select(combo_NO,Year,actual.AUM)
+actual.use = actual.use %>% dplyr::select(combo_NO,Year,actual.AUM)
 actual.use = as.data.frame(actual.use)
 
 # join on the actual use to the mesic extent data

@@ -39,7 +39,7 @@ years = c('2004','2006','2009','2011','2013','2015','2017','2019')
 woody = data.frame(ALLOT_NO = as.character(),PAST_NO = as.character(),woody = as.numeric(),year = as.numeric())
 for(i in years){
   x = read.csv(paste0('Data/NAIP_woodyCover/',i,'_woody.csv'))
-  x = x %>% select(ALLOT_NO,PAST_NO,woody)
+  x = x %>% dplyr::select(ALLOT_NO,PAST_NO,woody)
   x$ALLOT_NO = as.character(x$ALLOT_NO)
   x$PAST_NO = as.character(x$PAST_NO)
   x$year = as.numeric(i)
@@ -51,12 +51,12 @@ woody$ALLOT_NO = str_pad(woody$ALLOT_NO, 5, side='left', pad='0')
 woody$PAST_NO = str_pad(woody$PAST_NO, 2, side='left', pad='0')
 woody$combo_NO = paste0(woody$ALLOT_NO,'_',woody$PAST_NO)
 
-woody = woody %>% select(woody,year,combo_NO)
+woody = woody %>% dplyr::select(woody,year,combo_NO)
 
 # join woody data to pasture data
 analysis_data = woody %>% left_join(pastsDF,join_by(combo_NO == combo_NO))
 
-analysis_data = analysis_data %>% select(woody,year,combo_NO,ALLOT_NAME,PAST_NAME,area)
+analysis_data = analysis_data %>% dplyr::select(woody,year,combo_NO,ALLOT_NAME,PAST_NAME,area)
 
 # load in treatment data
 treatments = read.csv('C:/Users/samwi/OneDrive - University of Idaho/SFO_allTreatments.csv')
@@ -120,7 +120,7 @@ actual.summarised = actual.summarised %>%
 
 actual.use = pastsDF %>% left_join(actual.summarised,join_by(ALLOT_NAME==Allotment,PAST_NAME==Pasture))
 
-actual.use = actual.use %>% select(combo_NO,Year,actual.AUM)
+actual.use = actual.use %>% dplyr::select(combo_NO,Year,actual.AUM)
 
 analysis_data = analysis_data %>% left_join(actual.use,join_by(combo_NO == combo_NO,year==Year))
 # calculate aum/acre

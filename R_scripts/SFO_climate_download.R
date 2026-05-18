@@ -144,7 +144,7 @@ for(i in 1:85){
            late.seaon.PPT_mm = mean(prcp..mm.day.[yday >= 264]),
            annual.Tmax_C = mean(tmax..deg.c.),
            annual.Tmin_C = mean(tmin..deg.c.),
-           annual.PPT_mm = mean(prcp..mm.day.))  
+           annual.PPT_mm = sum(prcp..mm.day.))  
   
   tmp.mod1$elevation_m = site$altitude
   tmp.mod1$allot_name = first$ALLOT_NAME
@@ -153,3 +153,32 @@ for(i in 1:85){
 }
 
 write.csv(all.climate,"Data/all_pheno_climate.csv")
+
+##################### calculate statistics for SFO ########
+library(dplyr)
+df = read.csv("Data/all_pheno_climate.csv")
+
+keeps = c('annual.Tmax_C','annual.Tmin_C','annual.PPT_mm','elevation_m','allot_name')
+df = df[,keeps]
+df$annual.Tavg_C = (df$annual.Tmax_C + df$annual.Tmin_C)/2
+
+summary.df = df %>%
+  group_by(allot_name) %>%
+  summarise(
+    Tavg_C = mean(annual.Tavg_C),
+    PPT_mm = mean(annual.PPT_mm),
+    elevation_m = mean(elevation_m)
+  )
+
+# read in the treatment data
+treatments = read.csv('Data/SFO_allTreatments.csv')
+treatments = treatments %>% rename(ALLOT_NAME = Allotment,PAST_NAME = Pasture)
+
+treatments = treatments[complete.cases(treatments),]
+allots = unique(treatments$ALLOT_NAME)
+
+summary.df = summary.df[summary.df$allot_name %in% allots,]
+
+range(summary.df$PPT_mm) # 322 - 649
+range(summary.df$Tavg_C) # 3.2 - 7.6
+range(summary.df$elevation_m) # 1375 - 2435
