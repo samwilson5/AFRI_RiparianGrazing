@@ -178,22 +178,38 @@ data.scores = as.data.frame(scores(nmds)$sites)
 #add columns to data frame 
 data.scores$Treatment = nmds.field$Treatment
 
+# metric correlations
+metric.fit <- envfit(nmds, m_com, permutations = 999)
+head(metric.fit)
+metric.fit.scores <- as.data.frame(scores(metric.fit, display = "vectors"))
+metric.fit.scores <- cbind(metric.fit.scores, metric.variables = rownames(metric.fit.scores))
+
+metric.fit.scores.labels = metric.fit.scores
+metric.fit.scores.labels[1:4,1] = c(0.265,0.3,-0.11,-0.255)
+metric.fit.scores.labels[1:4,2] = c(-0.305,0.25,0.195,-0.165)
+metric.fit.scores.labels[1:4,3] = c('bankfull width','median substrate size','% stable bank','wetland rating')
 # ordination plot
+
 
 ggplot(data.scores, aes(x = NMDS1, y = NMDS2)) + 
   geom_point(size = 4, aes(colour = Treatment)) + 
   theme(axis.text.y = element_text(colour = "black", size = 18, face = "bold"),
         axis.text.x = element_text(colour = "black", face = "bold", size = 18), 
         legend.text = element_text(size = 12, face ="bold", colour ="black"), 
-        legend.position = 'inside',
-        legend.position.inside = c(0.85,0.85),
+        #legend.position = 'inside',
+        #legend.position.inside = c(0.85,0.85),
+        legend.position = 'top',
         axis.title.x = element_text(face = "bold", size = 22, colour = "black"),
         axis.title.y = element_text(face = "bold", size = 22, colour = "black"),
         legend.title = element_text(size = 22, colour = "black", face = "bold"), 
         panel.background = element_blank(), 
         panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
         legend.key=element_blank()) + 
-  labs(x = "NMDS1", colour = "Treatment", y = "NMDS2")
+  labs(x = "NMDS1", colour = "Treatment", y = "NMDS2")+
+  geom_segment(data = metric.fit.scores, aes(x = 0, xend=NMDS1*0.4, y=0, yend=NMDS2*0.4), 
+               arrow = arrow(length = unit(0.25, "cm")), colour = "grey10", lwd=0.3)+
+  ggrepel::geom_text_repel(data = metric.fit.scores.labels, aes(x=NMDS1, y=NMDS2, label = metric.variables), 
+                           cex = 5, direction = "both", segment.size = 0.25)
 
 
 
@@ -211,6 +227,18 @@ ordinationDist = betadisper(d = dist(data.scores[,c('NMDS1','NMDS2')]),
                             type = 'centroid')
 ordinationDist$distances
 plot(ordinationDist)
+
+metric.fit <- envfit(nmds, m_com, permutations = 999)
+head(metric.fit)
+plot(ordinationDist)
+plot(metric.fit)
+
+# correlation coefficients
+cor.coef <-
+  cor(m_com,
+      nmds$points,
+      use = "complete.obs",
+      method = "pearson")
 
 # is there a difference in dispersion between groups?
 anova(ordinationDist) #p-value equals 0.3 so no difference in dispersion
