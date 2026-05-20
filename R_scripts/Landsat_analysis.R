@@ -747,7 +747,8 @@ confint(m2.lmer) # summer is entirely negative
 car::Anova(m2.lmer,type='II') #treatment is allegedly important
 emmeans(m2.lmer, ~ Treatment) # summer does not overlap
 pairs(emmeans(m2.lmer, ~ Treatment)) # early and summer significantly different, continuous and summer significantly different 
-plot(emmeans(m2.lmer, ~ Treatment),xlab='Estimated Mean Peak of Season DOY',color='grey10') + 
+plot(emmeans(m2.lmer, ~ Treatment),xlab='Estimated Mean Peak of Season DOY',
+     ylab = 'Timing of Grazing',color='grey10') + 
   coord_flip()+
   theme_bw()+
   theme(axis.text.y = element_text(colour = "black", size = 18, face = "bold"),
@@ -755,9 +756,9 @@ plot(emmeans(m2.lmer, ~ Treatment),xlab='Estimated Mean Peak of Season DOY',colo
         axis.title.x = element_text(face = "bold", size = 22, colour = "black"),
         axis.title.y = element_text(face = "bold", size = 22, colour = "black"),
         panel.border = element_rect(colour = "black", fill = NA, size = 1.2))+
-  annotate('text',x=210,y = 'Continuous',label='bold(a)',parse=T,size=10)+
+  annotate('text',x=211,y = 'Continuous',label='bold(a)',parse=T,size=10)+
   annotate('text',x =199, y = 'Early',label='bold(a)',parse=T,size=10)+
-  annotate('text',x=199,y='Late',label='bold(ab)',parse=T,size=10)+
+  annotate('text',x=200,y='Late',label='bold(ab)',parse=T,size=10)+
   annotate('text',x=188,y='Summer',label='bold(b)',parse=T,size=10)
 
 summary(m2.lmer)

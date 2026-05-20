@@ -1,12 +1,12 @@
 library(sf)
 library(stringr)
-library(dplyr)
 library(phenofit)
 library(zoo)
 library(lme4)
 library(ggplot2)
 library(units)
 library(emmeans)
+library(dplyr)
 
 # read in pasture shapefile
 pastsSF = st_read("Data/SFO_pastures/Salmon_Pastures.shp")
@@ -29,15 +29,16 @@ for(i in combo_List){
   temp$year = str_split(temp$Year_period,'_',simplify=T)[,1]
   temp$year = as.numeric(temp$year)
   temp$ndvi_pixels = temp$NDVI
-  temp = temp %>% filter(ndvi_pixels > 0)
+  #temp = temp %>% filter(ndvi_pixels > 0)
   if(nrow(temp) == 0){print('skip')}
   else{
   temp$avg_area = mean(temp$ndvi_pixels)
   temp$diff_from_avg = temp$ndvi_pixels/temp$avg_area
   temp = temp %>% dplyr::select(combo_NO,year,ndvi_pixels, avg_area,diff_from_avg)
-  ls_mesic = rbind(ls_mesic,temp)}
+  if(temp$avg_area[1] == 0){print('skip')}
+  else{ls_mesic = rbind(ls_mesic,temp)}}
 }
-
+ls_mesic$diff_from_avg = ifelse(is.na(ls_mesic$diff_from_avg),1,ls_mesic$diff_from_avg)
 # read in climate data ############ probably update the location
 all.climate = read.csv("Data/all_pheno_climate.csv")
 all.climate = all.climate %>% rename(ALLOT_NAME = allot_name)
@@ -90,7 +91,7 @@ ls_mesic_climate_treat = ls_mesic_climate  %>%
 # filter for after our known start of treatment
 ls_mesic_climate_treat = ls_mesic_climate_treat[ls_mesic_climate_treat$year >= ls_mesic_climate_treat$Start,]
 
-ls_mesic_climate_treat = ls_mesic_climate_treat[complete.cases(ls_mesic_climate_treat),]
+#ls_mesic_climate_treat = ls_mesic_climate_treat[complete.cases(ls_mesic_climate_treat),]
 #length(unique(ls_mesic_climate_treat$combo_NO)) #126
 
 # resolving spelling errors
@@ -157,6 +158,7 @@ ls_mesic_climate_treat = ls_mesic_climate_treat %>%
 
 
 length(unique(ls_mesic_climate_treat$combo_NO)) # 117
+
 # box plot of mesic extent vs treatment
 p2 <- ggplot(ls_mesic_climate_treat, aes(x = reorder(Treatment, -diff_from_avg), y = diff_from_avg)) +
   geom_boxplot() +
@@ -165,7 +167,8 @@ p2 <- ggplot(ls_mesic_climate_treat, aes(x = reorder(Treatment, -diff_from_avg),
   labs(x = "Treatment", y = "Difference from Average")
 p2
 
-mean(ls_mesic_climate_treat$diff_from_avg) #1.12
+
+mean(ls_mesic_climate_treat$diff_from_avg,na.rm=T) #1.12
 median(ls_mesic_climate_treat$diff_from_avg)#1.07
 sd(ls_mesic_climate_treat$diff_from_avg) #0.45
 
@@ -197,7 +200,8 @@ anova(m1.lmer,mtest,test='Chi') #p < 0.001
 car::Anova(mtest,type='II') # treatment is very significant
 confint(mtest,method='profile') #late and summer are both fully negative
 emmeans(mtest,~Treatment)
-plot(emmeans(mtest,~Treatment),xlab='Estimated Mean Percent of Average Extent',color='grey10')+ 
+plot(emmeans(mtest,~Treatment),xlab='Estimated Mean Percent of Average Mesic Extent',
+     ylab = 'Timing of Grazing',color='grey10')+ 
   theme(text = element_text(size = 20))+
   coord_flip()+
   theme_bw()+
@@ -206,10 +210,10 @@ plot(emmeans(mtest,~Treatment),xlab='Estimated Mean Percent of Average Extent',c
         axis.title.x = element_text(face = "bold", size = 22, colour = "black"),
         axis.title.y = element_text(face = "bold", size = 22, colour = "black"),
         panel.border = element_rect(colour = "black", fill = NA, size = 1.2))+
-  annotate('text',x=1.26,y = 'Continuous',label='bold(a)',parse=T,size=10)+
-  annotate('text',x =1.21, y = 'Early',label='bold(a)',parse=T,size=10)+
-  annotate('text',x=1.09,y='Late',label='bold(b)',parse=T,size=10)+
-  annotate('text',x=1.15,y='Summer',label='bold(ab)',parse=T,size=10)
+  annotate('text',x=1.26,y = 'Continuous',label='bold(ab)',parse=T,size=10)+
+  annotate('text',x =1.24, y = 'Early',label='bold(a)',parse=T,size=10)+
+  annotate('text',x=1.18,y='Late',label='bold(ab)',parse=T,size=10)+
+  annotate('text',x=1.16,y='Summer',label='bold(b)',parse=T,size=10)
 pairs(emmeans(mtest,~Treatment)) # early and summer are significantly different
                                   # early and late are significantly different
                                   # continuous and late are significantly different
