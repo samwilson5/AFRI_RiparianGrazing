@@ -215,8 +215,6 @@ plot(emmeans(mtest,~Treatment),xlab='Estimated Mean Percent of Average Mesic Ext
   annotate('text',x=1.18,y='Late',label='bold(ab)',parse=T,size=10)+
   annotate('text',x=1.16,y='Summer',label='bold(b)',parse=T,size=10)
 pairs(emmeans(mtest,~Treatment)) # early and summer are significantly different
-                                  # early and late are significantly different
-                                  # continuous and late are significantly different
 
 # diagnostics
 plot(m1.lmer, Treatment ~ resid(.), abline = 0 )

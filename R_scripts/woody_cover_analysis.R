@@ -159,10 +159,11 @@ p2 <- ggplot(analysis_data, aes(x = reorder(Treatment, -woody), y = woody)) +
   labs(x = "Genre", y = "Frequency\n(Prepositions)")
 p2
 
-mean(analysis_data$woody) #72%
-sd(analysis_data$woody) #18%
-median(analysis_data$woody)
-length(unique(analysis_data$combo_NO)) # 103
+# quick summary statistics
+y = analysis_data %>% group_by(combo_NO) %>% summarise(site.woody = mean(woody))
+mean(y$site.woody) # 72%
+sd(y$site.woody) # 13%
+
 ################################################### mixed effects modelling ##################
 
 # base model must include year, site, and aum/acre

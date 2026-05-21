@@ -511,13 +511,19 @@ p2 <- ggplot(fitted.response.climate, aes(x = reorder(Treatment, -gs_integral), 
   labs(x = "Genre", y = "Frequency\n(Prepositions)")
 p2
 
-mean(fitted.response.climate$gs_integral) # 28.9
-sd(fitted.response.climate$gs_integral) # 6.6
-mean(fitted.response.climate$annual_integral) # 41.4
-sd(fitted.response.climate$annual_integral) # 10.6
-mean(fitted.response.climate$peak_NDVI) # 0.22
-sd(fitted.response.climate$peak_NDVI) # 0.05
-length(unique(fitted.response.climate$combo_NO)) # 106
+
+
+# quick summary statistics
+y = fitted.response.climate %>% group_by(combo_NO) %>% summarise(site.gs_integral = mean(gs_integral))
+mean(y$site.gs_integral) # 29.1
+sd(y$site.gs_integral) # 5.3
+y = fitted.response.climate %>% group_by(combo_NO) %>% summarise(site.annual_integral = mean(annual_integral))
+mean(y$site.annual_integral) # 42.4
+sd(y$site.annual_integral) # 8.8
+y = fitted.response.climate %>% group_by(combo_NO) %>% summarise(site.peak_NDVI = mean(peak_NDVI))
+mean(y$site.peak_NDVI) # 0.22
+sd(y$site.peak_NDVI) # 0.04
+
 #### analysis of growing season integral first ###
 
 # base model needs to include year, site, and aum/acre
@@ -708,11 +714,20 @@ pheno.variables$summer.Tavg_C = (pheno.variables$summer.Tmax_C + pheno.variables
 pheno.variables$fall.Tavg_C = (pheno.variables$fall.Tmax_C + pheno.variables$fall.Tmin_C)/2
 pheno.variables = pheno.variables %>% filter(mean.sos >= 60)
 
-#################################### start with peak of season (mean.pos) #######################
+
+# quick summary statistics
 pheno.variables = pheno.variables[pheno.variables$combo_NO %in% sites_to_keep,]
-mean(pheno.variables$mean.sos) # 128
-mean(pheno.variables$mean.pos) # 189
-mean(pheno.variables$mean.eos) # 282
+y = pheno.variables %>% group_by(combo_NO) %>% summarise(site.mean.sos = mean(mean.sos))
+mean(y$site.mean.sos) # 126
+sd(y$site.mean.sos) # 17
+y = pheno.variables %>% group_by(combo_NO) %>% summarise(site.mean.pos = mean(mean.pos))
+mean(y$site.mean.pos) # 188
+sd(y$site.mean.pos) # 16
+y = pheno.variables %>% group_by(combo_NO) %>% summarise(site.mean.eos = mean(mean.eos))
+mean(y$site.mean.eos) # 283
+sd(y$site.mean.eos) # 13
+
+#################################### start with peak of season (mean.pos) #######################
 
 # base model must include year, site, and aum/acre
 m2.lmer = lmer(mean.pos ~ year + aum.per.acre + (1|combo_NO), REML = F, data = pheno.variables)
@@ -1203,6 +1218,23 @@ ggplot(slopes, aes(x=2000,xend=2020,y=start,yend=end,group=combo_NO))+
   geom_segment(aes(x=2000,xend=2020,y=mean(start),yend=mean(end)),
                color='red',
                linewidth=1.5)+
+  theme_bw()+
+  theme(axis.text.y = element_text(colour = "black", size = 18, face = "bold"),
+        axis.text.x = element_text(colour = "black", face = "bold", size = 18),
+        axis.title.x = element_text(face = "bold", size = 22, colour = "black"),
+        axis.title.y = element_text(face = "bold", size = 22, colour = "black"),
+        panel.border = element_rect(colour = "black", fill = NA, size = 1.2))
+
+ggplot(data = slopes, aes(x = slope)) + 
+  geom_histogram(binwidth = .0005, fill = "grey50", color = "black") +
+  labs(
+    x = "Slope of Riparian NDVI Trend",
+    y = "Count"
+  ) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.06)))+
+  geom_vline(xintercept = 0.0,linetype='dashed',linewidth=0.75)+
+  geom_vline(xintercept = mean(slopes$slope),linewidth=1,color='red')+
+  #annotate('label',x=0.006,y=21,label = 'mean = 0.002',size=5,fill='white')+
   theme_bw()+
   theme(axis.text.y = element_text(colour = "black", size = 18, face = "bold"),
         axis.text.x = element_text(colour = "black", face = "bold", size = 18),
