@@ -198,14 +198,14 @@ ggplot(data.scores, aes(x = NMDS1, y = NMDS2)) +
         legend.text = element_text(size = 12, face ="bold", colour ="black"), 
         #legend.position = 'inside',
         #legend.position.inside = c(0.85,0.85),
-        legend.position = 'top',
-        axis.title.x = element_text(face = "bold", size = 22, colour = "black"),
-        axis.title.y = element_text(face = "bold", size = 22, colour = "black"),
+        legend.position = 'bottom',
+        axis.title.x = element_text(face = "bold", size = 18, colour = "black"),
+        axis.title.y = element_text(face = "bold", size = 18, colour = "black"),
         legend.title = element_text(size = 22, colour = "black", face = "bold"), 
         panel.background = element_blank(), 
         panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
         legend.key=element_blank()) + 
-  labs(x = "NMDS1", colour = "Treatment", y = "NMDS2")+
+  labs(x = "NMDS1", colour = "Grazing Timing", y = "NMDS2")+
   geom_segment(data = metric.fit.scores, aes(x = 0, xend=NMDS1*0.4, y=0, yend=NMDS2*0.4), 
                arrow = arrow(length = unit(0.25, "cm")), colour = "grey10", lwd=0.3)+
   ggrepel::geom_text_repel(data = metric.fit.scores.labels, aes(x=NMDS1, y=NMDS2, label = metric.variables), 

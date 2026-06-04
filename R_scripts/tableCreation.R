@@ -1,22 +1,23 @@
 library(gt)
+library(dplyr)
 prod.df = data.frame(
   'Response Variable' = c('Growing Season Integral','Growing Season Integral','Growing Season Integral','Annual Integral','Annual Integral','Annual Integral','Peak NDVI','Peak NDVI','Peak NDVI'),
-  'Dependent Variable' = c('Temperature','Precipitation','Temperature + Precipitation + Treatment','Temperature','Precipitation','Temperature + Precipitation + Treatment','Temperature','Precipitation','Precipitation + Treatment'),
+  'Dependent Variable' = c('Temperature','Precipitation','Temperature + Precipitation + Grazing Timing','Temperature','Precipitation','Temperature + Precipitation + Grazing Timing','Temperature','Precipitation','Precipitation + Grazing Timing'),
   'P-Value Compared to Base Model' = c('< 0.001','< 0.001','0.38','< 0.001','< 0.001','0.66','0.17','< 0.001','0.37'),
   check.names=F)
   
 prod.tab = gt(prod.df) %>% tab_options(column_labels.font.weight = "bold")
-prod.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Tables/prod_reg_table.png')
+prod.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Rangelands_Manuscript/Tables/prod_reg_table.png')
 
 phen.df = data.frame(
   'Response Variable' = c('Start of Growing Season','Start of Growing Season','Start of Growing Season','Peak of Growing Season','Peak of Growing Season','Peak of Growing Season','Peak of Growing Season','Peak of Growing Season','End of Growing Season','End of Growing Season','End of Growing Season','End of Growing Season','End of Growing Season','End of Growing Season','End of Growing Season'),
-  'Dependent Variable' = c('Spring Temperature','Spring Precipitation','Spring Temperature + Spring Precipitation + Treatment','Spring Temperature','Summer Temperature','Spring Precipitation','Summer Precipitation','Spring Temperature + Summer Temperature + Spring Precipitation + Summer Precipitation + Treatment', 'Spring Temperature','Summer Temperature','Fall Temperature','Spring Precipitation','Summer Precipitation','Fall Precipitation','Spring Temperature + Fall Temperature + Fall Precipitation + Treatment'),
+  'Dependent Variable' = c('Spring Temperature','Spring Precipitation','Spring Temperature + Spring Precipitation + Grazing Timing','Spring Temperature','Summer Temperature','Spring Precipitation','Summer Precipitation','Spring Temperature + Summer Temperature + Spring Precipitation + Summer Precipitation + Grazing Timing', 'Spring Temperature','Summer Temperature','Fall Temperature','Spring Precipitation','Summer Precipitation','Fall Precipitation','Spring Temperature + Fall Temperature + Fall Precipitation + Grazing Timing'),
   'P-Value Compared to Base Model' = c('< 0.001','< 0.001','0.1','< 0.001','< 0.001','< 0.001','< 0.001','< 0.01','< 0.001','0.24','< 0.001','0.63','0.79','< 0.01','0.21'),
   check.names = F
 )
 
 phen.tab = gt(phen.df) %>% tab_options(column_labels.font.weight = "bold")
-phen.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Tables/phen_reg_table.png')
+phen.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Rangelands_Manuscript/Tables/phen_reg_table.png')
 
 wood.df = data.frame(
   'Reponse Variable' = c('Woody Cover','Woody Cover','Woody Cover'),
@@ -38,18 +39,18 @@ mesic.tab = gt(mesic.df) %>% tab_options(column_labels.font.weight = "bold")
 mesic.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Tables/mesic_reg_table.png')
 
 summary.df = data.frame(
-  'Remote Sensing Metric'=c('Growing Season Integral','Annual Integral','Peak NDVI','Start of Growing Season','Peak of Growing Season','End of Growing Season','Woody Cover','Mesic Extent'),
-  'Final Model Variables'=c('Temperature + Precipitation + Treatment','Temperature + Precipitation + Treatment','Precipitation + Treatment','Spring Temperature + Spring Precipitation','Spring Temperature + Summer Temperature + Spring Precipitation + Summer Precipitation + Treatment','Spring Temperature + Fall Temperature + Fall Precipitation + Treatment','Temperature + Treatment','Precipitation + Treatment'),
-  'P-Value Compared to Base Model'=c('0.38','0.66','0.37','0.1','0.002','0.21','0.49','<0.001'),
+  'Remote Sensing Metric'=c('Growing Season NDVI Integral','Annual NDVI Integral','Maximum NDVI','Start of Growing Season','Peak of Growing Season','End of Growing Season','Woody Cover','Mesic Extent'),
+  'Final Model Variables'=c('Temperature + Precipitation + Grazing Timing','Temperature + Precipitation + Grazing Timing','Precipitation + Grazing Timing','Spring Temperature + Spring Precipitation + Grazing Timing','Spring Temperature + Summer Temperature + Spring Precipitation + Summer Precipitation + Grazing Timing','Spring Temperature + Fall Temperature + Fall Precipitation + Grazing Timing','Temperature + Grazing Timing','Precipitation + Grazing Timing'),
+  'P-Value Compared to Base Model'=c('0.38','0.66','0.37','0.1','0.002','0.21','0.49','0.03'),
   check.names=F
 )
 sum.tab = gt(summary.df) %>% tab_options(column_labels.font.weight = "bold")
-sum.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Tables/summary_reg_table.png')
+sum.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Rangelands_Manuscript/Tables/summary_reg_table.png')
 
 treat.df = data.frame(
-  'Treatment' = c('Exclosure','Early Season','Summer','Late Season','Continuous'),
+  'Assigned Grazing Timing' = c('Exclosure','Early Season','Summer','Late Season','Continuous'),
   'Dates Grazed' = c('NA','Before June 21','June 21 - September 21','After September 21','Before June 21 - After September 21'),
   check.names = F
 )
 treat.tab = gt(treat.df) %>% tab_options(column_labels.font.weight = "bold")
-treat.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Tables/treatment_reg_table.png')
+treat.tab %>% gtsave('C:/Users/samwi/OneDrive - University of Idaho/UI_ResearchTech/Writing/Rangelands_Manuscript/Tables/treatment_reg_table.png')
