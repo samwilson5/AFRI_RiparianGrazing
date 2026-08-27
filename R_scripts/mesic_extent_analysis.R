@@ -194,9 +194,10 @@ anova(m2.lmer,m3.lmer,test='Chi') ## p = 0.07
 # model with our significant variables
 m1.lmer = lmer(diff_from_avg  ~ PPT_mm + year + aum.per.acre + (1|combo_NO),REML=T,data=ls_mesic_climate_treat)
 
+
 mtest = update(m1.lmer, .~.+ Treatment)
 anova(m1.lmer,mtest,test='Chi') #p < 0.001
-
+summary(mtest)
 car::Anova(mtest,type='II') # treatment is very significant
 confint(mtest,method='profile') #late and summer are both fully negative
 emmeans(mtest,~Treatment)
